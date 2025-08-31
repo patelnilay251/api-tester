@@ -11,6 +11,7 @@ import {
   addEdge,
   Connection,
   Edge,
+  Node,
   BackgroundVariant,
   Panel
 } from '@xyflow/react';
@@ -37,15 +38,41 @@ interface ResponseData {
   url: string;
 }
 
+interface ApiRequestNodeData extends Record<string, unknown> {
+  label: string;
+  name?: string;
+  onRequestSent: (nodeId: string, requestData: RequestData, response: ResponseData) => void;
+  onDelete: (nodeId: string) => void;
+  onNameChange?: (nodeId: string, newName: string) => void;
+}
+
+interface ResponseNodeData extends Record<string, unknown> {
+  response: ResponseData;
+  requestData: RequestData;
+  name?: string;
+  onDelete?: (nodeId: string) => void;
+  onNameChange?: (nodeId: string, newName: string) => void;
+}
+
+type AppNode = Node<ApiRequestNodeData, 'apiRequest'> | Node<ResponseNodeData, 'response'>;
+
 const nodeTypes = {
   apiRequest: ApiRequestNode,
   response: ResponseNode,
 };
 
 export default function Home() {
-  const [nodes, setNodes, onNodesChange] = useNodesState([]);
-  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+  const [nodes, setNodes, onNodesChange] = useNodesState<AppNode>([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [nodeId, setNodeId] = useState(0);
+  const [nodeNames, setNodeNames] = useState<Record<string, string>>({});
+
+  const handleNameChange = useCallback((nodeId: string, newName: string) => {
+    setNodeNames(prev => ({
+      ...prev,
+      [nodeId]: newName
+    }));
+  }, []);
 
   const handleDeleteNode = useCallback((nodeId: string) => {
     console.log('Deleting node:', nodeId);
@@ -88,6 +115,15 @@ export default function Home() {
 
       return filteredNodes;
     });
+
+    // Clean up node names
+    setNodeNames(prev => {
+      const newNames = { ...prev };
+      nodesToDelete.forEach(id => {
+        delete newNames[id];
+      });
+      return newNames;
+    });
   }, [setNodes, setEdges]);
 
   const handleDeleteSingleNode = useCallback((nodeId: string) => {
@@ -95,6 +131,13 @@ export default function Home() {
 
     setNodes((nds) => nds.filter((node) => node.id !== nodeId));
     setEdges((eds) => eds.filter((edge) => edge.source !== nodeId && edge.target !== nodeId));
+
+    // Clean up node name
+    setNodeNames(prev => {
+      const newNames = { ...prev };
+      delete newNames[nodeId];
+      return newNames;
+    });
   }, [setNodes, setEdges]);
 
   const handleRequestSent = useCallback((nodeId: string, requestData: RequestData, response: ResponseData) => {
@@ -110,7 +153,7 @@ export default function Home() {
       }
 
       // Create response node
-      const responseNode = {
+      const responseNode: AppNode = {
         id: responseNodeId,
         type: 'response',
         position: {
@@ -120,7 +163,9 @@ export default function Home() {
         data: {
           response,
           requestData,
+          name: nodeNames[responseNodeId] || `Response ${response.status}`,
           onDelete: handleDeleteSingleNode,
+          onNameChange: handleNameChange,
         },
       };
 
@@ -141,20 +186,22 @@ export default function Home() {
       console.log('Creating edge:', newEdge);
       return [...currentEdges, newEdge];
     });
-  }, [setNodes, setEdges, handleDeleteSingleNode]);
+  }, [setNodes, setEdges, handleDeleteSingleNode, handleNameChange, nodeNames]);
 
-  const initialNodes = useMemo(() => [
+  const initialNodes: AppNode[] = useMemo(() => [
     {
       id: 'api-1',
       type: 'apiRequest',
       position: { x: 100, y: 100 },
       data: {
         label: 'API Request',
+        name: nodeNames['api-1'] || 'API Request',
         onRequestSent: handleRequestSent,
         onDelete: handleDeleteNode,
+        onNameChange: handleNameChange,
       },
     },
-  ], [handleRequestSent, handleDeleteNode]);
+  ], [handleRequestSent, handleDeleteNode, handleNameChange, nodeNames]);
 
   // Initialize with first node
   useEffect(() => {
@@ -169,9 +216,14 @@ export default function Home() {
     setNodes((currentNodes) => {
       const needsUpdate = currentNodes.some(node =>
         (node.type === 'apiRequest' &&
-          (node.data.onRequestSent !== handleRequestSent || node.data.onDelete !== handleDeleteNode)) ||
+          (node.data.onRequestSent !== handleRequestSent ||
+            node.data.onDelete !== handleDeleteNode ||
+            node.data.onNameChange !== handleNameChange ||
+            node.data.name !== nodeNames[node.id])) ||
         (node.type === 'response' &&
-          node.data.onDelete !== handleDeleteSingleNode)
+          (node.data.onDelete !== handleDeleteSingleNode ||
+            node.data.onNameChange !== handleNameChange ||
+            node.data.name !== nodeNames[node.id]))
       );
 
       if (!needsUpdate) return currentNodes;
@@ -182,8 +234,10 @@ export default function Home() {
             ...node,
             data: {
               ...node.data,
+              name: nodeNames[node.id] || node.data.name || 'API Request',
               onRequestSent: handleRequestSent,
               onDelete: handleDeleteNode,
+              onNameChange: handleNameChange,
             },
           };
         } else if (node.type === 'response') {
@@ -191,14 +245,16 @@ export default function Home() {
             ...node,
             data: {
               ...node.data,
+              name: nodeNames[node.id] || node.data.name || `Response ${node.data.response?.status || ''}`,
               onDelete: handleDeleteSingleNode,
+              onNameChange: handleNameChange,
             },
           };
         }
         return node;
       });
     });
-  }, [handleRequestSent, handleDeleteNode, handleDeleteSingleNode, setNodes]);
+  }, [handleRequestSent, handleDeleteNode, handleDeleteSingleNode, handleNameChange, nodeNames, setNodes]);
 
   const onConnect = useCallback(
     (params: Connection) => setEdges((eds) => addEdge(params, eds)),
@@ -207,7 +263,7 @@ export default function Home() {
 
   const handleAddNewApiNode = useCallback(() => {
     const newId = `api-${nodeId + 1}`;
-    const newNode = {
+    const newNode: AppNode = {
       id: newId,
       type: 'apiRequest',
       position: {
@@ -216,19 +272,22 @@ export default function Home() {
       },
       data: {
         label: 'API Request',
+        name: nodeNames[newId] || 'API Request',
         onRequestSent: handleRequestSent,
         onDelete: handleDeleteNode,
+        onNameChange: handleNameChange,
       },
     };
 
     setNodes((nds) => [...nds, newNode]);
     setNodeId(nodeId + 1);
-  }, [nodeId, handleRequestSent, handleDeleteNode, setNodes]);
+  }, [nodeId, handleRequestSent, handleDeleteNode, handleNameChange, nodeNames, setNodes]);
 
   const handleReset = useCallback(() => {
     setNodes(initialNodes);
     setEdges([]);
     setNodeId(1);
+    setNodeNames({});
   }, [initialNodes, setNodes, setEdges]);
 
   return (

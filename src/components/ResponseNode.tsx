@@ -12,7 +12,9 @@ import {
     Code,
     Eye,
     EyeOff,
-    X
+    X,
+    Edit3,
+    Check
 } from 'lucide-react';
 
 interface ResponseNodeProps {
@@ -32,17 +34,45 @@ interface ResponseNodeProps {
             headers: string;
             data: string;
         };
+        name?: string;
         onDelete?: (nodeId: string) => void;
+        onNameChange?: (nodeId: string, newName: string) => void;
     };
     selected?: boolean;
 }
 
 const ResponseNode = memo(({ id, data, selected }: ResponseNodeProps) => {
     const [showDetails, setShowDetails] = useState(false);
+    const [isEditingName, setIsEditingName] = useState(false);
     const { response, requestData } = data;
+    const [currentName, setCurrentName] = useState(data.name || `Response ${response.status}`);
 
     const handleCopy = async () => {
         await navigator.clipboard.writeText(JSON.stringify(response.data, null, 2));
+    };
+
+    const handleNameEdit = () => {
+        setIsEditingName(true);
+    };
+
+    const handleNameSave = () => {
+        setIsEditingName(false);
+        if (data.onNameChange && currentName.trim()) {
+            data.onNameChange(id, currentName.trim());
+        }
+    };
+
+    const handleNameCancel = () => {
+        setIsEditingName(false);
+        setCurrentName(data.name || `Response ${response.status}`);
+    };
+
+    const handleNameKeyPress = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter') {
+            handleNameSave();
+        } else if (e.key === 'Escape') {
+            handleNameCancel();
+        }
     };
 
     const getStatusColor = () => {
@@ -69,19 +99,50 @@ const ResponseNode = memo(({ id, data, selected }: ResponseNodeProps) => {
         <motion.div
             initial={{ scale: 0.8, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            className={`w-72 bg-white/95 backdrop-blur-xl rounded-3xl shadow-xl border border-white/20 ${selected ? 'ring-2 ring-black/20' : ''
+            className={`group w-72 bg-white/95 backdrop-blur-xl rounded-3xl shadow-xl border border-white/20 ${selected ? 'ring-2 ring-black/20' : ''
                 }`}
         >
             <Handle type="target" position={Position.Left} className="w-3 h-3 bg-black/20" />
 
             {/* Header */}
             <div className="p-4 border-b border-black/10">
-                <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2">
-                        <span className="text-xs font-mono text-black/60">{requestData.method}</span>
-                        <span className="text-xs text-black/40 truncate max-w-[120px]">
-                            {new URL(requestData.url).pathname}
-                        </span>
+                {/* Title and Actions Row */}
+                <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-1 flex-1 min-w-0">
+                        {isEditingName ? (
+                            <div className="flex items-center gap-1 flex-1">
+                                <input
+                                    type="text"
+                                    value={currentName}
+                                    onChange={(e) => setCurrentName(e.target.value)}
+                                    onKeyDown={handleNameKeyPress}
+                                    onBlur={handleNameSave}
+                                    className="flex-1 px-2 py-1 text-xs font-medium text-black/80 bg-white border border-black/20 rounded focus:outline-none focus:ring-1 focus:ring-black/30"
+                                    autoFocus
+                                    maxLength={50}
+                                />
+                                <button
+                                    onClick={handleNameSave}
+                                    className="p-1 hover:bg-green-50 rounded transition-colors"
+                                    title="Save name"
+                                >
+                                    <Check className="w-3 h-3 text-green-600" />
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="flex items-center gap-1 flex-1 min-w-0">
+                                <span className="text-xs font-medium text-black/80 truncate" title={currentName}>
+                                    {currentName}
+                                </span>
+                                <button
+                                    onClick={handleNameEdit}
+                                    className="p-1 hover:bg-black/5 rounded transition-colors opacity-0 group-hover:opacity-100"
+                                    title="Edit name"
+                                >
+                                    <Edit3 className="w-3 h-3 text-black/60" />
+                                </button>
+                            </div>
+                        )}
                     </div>
 
                     <div className="flex items-center gap-1">
@@ -107,6 +168,14 @@ const ResponseNode = memo(({ id, data, selected }: ResponseNodeProps) => {
                             </button>
                         )}
                     </div>
+                </div>
+
+                {/* Method and URL Row */}
+                <div className="flex items-center gap-2 text-xs text-black/40 mb-2">
+                    <span className="font-mono">{requestData.method}</span>
+                    <span className="truncate">
+                        {new URL(requestData.url).pathname}
+                    </span>
                 </div>
 
                 {/* Status and Time */}

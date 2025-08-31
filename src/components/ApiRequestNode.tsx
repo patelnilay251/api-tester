@@ -11,7 +11,9 @@ import {
     X,
     Plus,
     Maximize2,
-    Minimize2
+    Minimize2,
+    Edit3,
+    Check
 } from 'lucide-react';
 
 interface RequestData {
@@ -25,8 +27,10 @@ interface ApiRequestNodeProps {
     id: string;
     data: {
         label: string;
+        name?: string;
         onRequestSent: (nodeId: string, requestData: RequestData, response: any) => void;
         onDelete: (nodeId: string) => void;
+        onNameChange?: (nodeId: string, newName: string) => void;
     };
     selected?: boolean;
 }
@@ -41,6 +45,8 @@ const ApiRequestNode = memo(({ id, data, selected }: ApiRequestNodeProps) => {
 
     const [loading, setLoading] = useState(false);
     const [isExpanded, setIsExpanded] = useState(false);
+    const [isEditingName, setIsEditingName] = useState(false);
+    const [currentName, setCurrentName] = useState(data.name || 'API Request');
     const { fitView } = useReactFlow();
 
     const handleSubmit = useCallback(async (e: React.FormEvent) => {
@@ -110,11 +116,35 @@ const ApiRequestNode = memo(({ id, data, selected }: ApiRequestNodeProps) => {
         fitView({ nodes: [{ id }], duration: 800 });
     }, [fitView, id]);
 
+    const handleNameEdit = useCallback(() => {
+        setIsEditingName(true);
+    }, []);
+
+    const handleNameSave = useCallback(() => {
+        setIsEditingName(false);
+        if (data.onNameChange && currentName.trim()) {
+            data.onNameChange(id, currentName.trim());
+        }
+    }, [data, id, currentName]);
+
+    const handleNameCancel = useCallback(() => {
+        setIsEditingName(false);
+        setCurrentName(data.name || 'API Request');
+    }, [data.name]);
+
+    const handleNameKeyPress = useCallback((e: React.KeyboardEvent) => {
+        if (e.key === 'Enter') {
+            handleNameSave();
+        } else if (e.key === 'Escape') {
+            handleNameCancel();
+        }
+    }, [handleNameSave, handleNameCancel]);
+
     return (
         <motion.div
             initial={{ scale: 0.8, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            className={`relative ${isExpanded ? 'w-96' : 'w-80'
+            className={`group relative ${isExpanded ? 'w-96' : 'w-80'
                 } bg-white/95 backdrop-blur-xl rounded-3xl shadow-xl border border-white/20 ${selected ? 'ring-2 ring-black/20' : ''
                 }`}
         >
@@ -123,11 +153,44 @@ const ApiRequestNode = memo(({ id, data, selected }: ApiRequestNodeProps) => {
 
             {/* Header */}
             <div className="flex items-center justify-between p-4 border-b border-black/10">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-1 min-w-0">
                     <div className="w-6 h-6 rounded-lg bg-black/5 flex items-center justify-center">
                         <Globe className="w-3 h-3 text-black/60" />
                     </div>
-                    <span className="font-medium text-sm text-black/80">API Request</span>
+                    {isEditingName ? (
+                        <div className="flex items-center gap-1 flex-1">
+                            <input
+                                type="text"
+                                value={currentName}
+                                onChange={(e) => setCurrentName(e.target.value)}
+                                onKeyDown={handleNameKeyPress}
+                                onBlur={handleNameSave}
+                                className="flex-1 px-2 py-1 text-sm font-medium text-black/80 bg-white border border-black/20 rounded focus:outline-none focus:ring-1 focus:ring-black/30"
+                                autoFocus
+                                maxLength={50}
+                            />
+                            <button
+                                onClick={handleNameSave}
+                                className="p-1 hover:bg-green-50 rounded transition-colors"
+                                title="Save name"
+                            >
+                                <Check className="w-3 h-3 text-green-600" />
+                            </button>
+                        </div>
+                    ) : (
+                        <div className="flex items-center gap-1 flex-1 min-w-0">
+                            <span className="font-medium text-sm text-black/80 truncate" title={currentName}>
+                                {currentName}
+                            </span>
+                            <button
+                                onClick={handleNameEdit}
+                                className="p-1 hover:bg-black/5 rounded transition-colors opacity-0 group-hover:opacity-100"
+                                title="Edit name"
+                            >
+                                <Edit3 className="w-3 h-3 text-black/60" />
+                            </button>
+                        </div>
+                    )}
                 </div>
 
                 <div className="flex items-center gap-1">
