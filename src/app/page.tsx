@@ -48,6 +48,51 @@ export default function Home() {
   const [nodeId, setNodeId] = useState(0);
 
   const handleDeleteNode = useCallback((nodeId: string) => {
+    console.log('Deleting node:', nodeId);
+
+    // Use a ref to coordinate between the two state updates
+    let nodesToDelete: Set<string>;
+
+    setEdges((currentEdges) => {
+      // Find all connected nodes (children) of the node being deleted
+      nodesToDelete = new Set([nodeId]);
+
+      // Helper function to recursively find all children
+      const findAllChildren = (parentId: string) => {
+        currentEdges.forEach(edge => {
+          if (edge.source === parentId && !nodesToDelete.has(edge.target)) {
+            nodesToDelete.add(edge.target);
+            // Recursively find children of this child
+            findAllChildren(edge.target);
+          }
+        });
+      };
+
+      // Start recursive search for children
+      findAllChildren(nodeId);
+
+      console.log('Nodes to delete:', Array.from(nodesToDelete));
+
+      // Remove all edges connected to any of the nodes being deleted
+      const filteredEdges = currentEdges.filter(edge =>
+        !nodesToDelete.has(edge.source) && !nodesToDelete.has(edge.target)
+      );
+
+      return filteredEdges;
+    });
+
+    setNodes((currentNodes) => {
+      // Use the same nodesToDelete set from the edges update
+      const filteredNodes = currentNodes.filter(node => !nodesToDelete.has(node.id));
+      console.log('Remaining nodes after deletion:', filteredNodes.length);
+
+      return filteredNodes;
+    });
+  }, [setNodes, setEdges]);
+
+  const handleDeleteSingleNode = useCallback((nodeId: string) => {
+    console.log('Deleting single node:', nodeId);
+
     setNodes((nds) => nds.filter((node) => node.id !== nodeId));
     setEdges((eds) => eds.filter((edge) => edge.source !== nodeId && edge.target !== nodeId));
   }, [setNodes, setEdges]);
@@ -75,6 +120,7 @@ export default function Home() {
         data: {
           response,
           requestData,
+          onDelete: handleDeleteSingleNode,
         },
       };
 
@@ -95,7 +141,7 @@ export default function Home() {
       console.log('Creating edge:', newEdge);
       return [...currentEdges, newEdge];
     });
-  }, [setNodes, setEdges]);
+  }, [setNodes, setEdges, handleDeleteSingleNode]);
 
   const initialNodes = useMemo(() => [
     {
@@ -122,8 +168,10 @@ export default function Home() {
   useEffect(() => {
     setNodes((currentNodes) => {
       const needsUpdate = currentNodes.some(node =>
-        node.type === 'apiRequest' &&
-        (node.data.onRequestSent !== handleRequestSent || node.data.onDelete !== handleDeleteNode)
+        (node.type === 'apiRequest' &&
+          (node.data.onRequestSent !== handleRequestSent || node.data.onDelete !== handleDeleteNode)) ||
+        (node.type === 'response' &&
+          node.data.onDelete !== handleDeleteSingleNode)
       );
 
       if (!needsUpdate) return currentNodes;
@@ -138,11 +186,19 @@ export default function Home() {
               onDelete: handleDeleteNode,
             },
           };
+        } else if (node.type === 'response') {
+          return {
+            ...node,
+            data: {
+              ...node.data,
+              onDelete: handleDeleteSingleNode,
+            },
+          };
         }
         return node;
       });
     });
-  }, [handleRequestSent, handleDeleteNode, setNodes]);
+  }, [handleRequestSent, handleDeleteNode, handleDeleteSingleNode, setNodes]);
 
   const onConnect = useCallback(
     (params: Connection) => setEdges((eds) => addEdge(params, eds)),

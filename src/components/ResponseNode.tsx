@@ -11,7 +11,8 @@ import {
     Copy,
     Code,
     Eye,
-    EyeOff
+    EyeOff,
+    X
 } from 'lucide-react';
 
 interface ResponseNodeProps {
@@ -31,6 +32,7 @@ interface ResponseNodeProps {
             headers: string;
             data: string;
         };
+        onDelete?: (nodeId: string) => void;
     };
     selected?: boolean;
 }
@@ -95,6 +97,15 @@ const ResponseNode = memo(({ id, data, selected }: ResponseNodeProps) => {
                         >
                             <Copy className="w-3 h-3 text-black/60" />
                         </button>
+                        {data.onDelete && (
+                            <button
+                                onClick={() => data.onDelete?.(id)}
+                                className="p-1.5 hover:bg-red-50 rounded-lg transition-colors"
+                                title="Delete this response node"
+                            >
+                                <X className="w-3 h-3 text-red-500" />
+                            </button>
+                        )}
                     </div>
                 </div>
 
