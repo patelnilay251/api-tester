@@ -52,39 +52,50 @@ export default function Home() {
     setEdges((eds) => eds.filter((edge) => edge.source !== nodeId && edge.target !== nodeId));
   }, [setNodes, setEdges]);
 
-  function handleRequestSent(nodeId: string, requestData: RequestData, response: ResponseData) {
-    const sourceNode = nodes.find(node => node.id === nodeId);
-    if (!sourceNode) return;
+  const handleRequestSent = useCallback((nodeId: string, requestData: RequestData, response: ResponseData) => {
+    console.log('handleRequestSent called:', { nodeId, requestData, response });
 
     const responseNodeId = `response-${Date.now()}`;
 
-    // Create response node
-    const responseNode = {
-      id: responseNodeId,
-      type: 'response',
-      position: {
-        x: sourceNode.position.x + 400,
-        y: sourceNode.position.y,
-      },
-      data: {
-        response,
-        requestData,
-      },
-    };
+    setNodes((currentNodes) => {
+      const sourceNode = currentNodes.find(node => node.id === nodeId);
+      if (!sourceNode) {
+        console.log('Source node not found:', nodeId);
+        return currentNodes;
+      }
 
-    // Create edge connecting request to response
-    const newEdge = {
-      id: `edge-${nodeId}-${responseNodeId}`,
-      source: nodeId,
-      target: responseNodeId,
-      type: 'default',
-      style: { stroke: '#000', strokeWidth: 2 },
-      animated: true,
-    };
+      // Create response node
+      const responseNode = {
+        id: responseNodeId,
+        type: 'response',
+        position: {
+          x: sourceNode.position.x + 400,
+          y: sourceNode.position.y,
+        },
+        data: {
+          response,
+          requestData,
+        },
+      };
 
-    setNodes((nds) => [...nds, responseNode]);
-    setEdges((eds) => [...eds, newEdge]);
-  }
+      console.log('Creating response node:', responseNode);
+      return [...currentNodes, responseNode];
+    });
+
+    setEdges((currentEdges) => {
+      const newEdge = {
+        id: `edge-${nodeId}-${responseNodeId}`,
+        source: nodeId,
+        target: responseNodeId,
+        type: 'default',
+        style: { stroke: '#000', strokeWidth: 2 },
+        animated: true,
+      };
+
+      console.log('Creating edge:', newEdge);
+      return [...currentEdges, newEdge];
+    });
+  }, [setNodes, setEdges]);
 
   const initialNodes = useMemo(() => [
     {
@@ -97,7 +108,7 @@ export default function Home() {
         onDelete: handleDeleteNode,
       },
     },
-  ], [handleDeleteNode]);
+  ], [handleRequestSent, handleDeleteNode]);
 
   // Initialize with first node
   useEffect(() => {
@@ -106,6 +117,32 @@ export default function Home() {
       setNodeId(1);
     }
   }, [nodes.length, initialNodes, setNodes]);
+
+  // Update existing nodes with fresh callback references
+  useEffect(() => {
+    setNodes((currentNodes) => {
+      const needsUpdate = currentNodes.some(node =>
+        node.type === 'apiRequest' &&
+        (node.data.onRequestSent !== handleRequestSent || node.data.onDelete !== handleDeleteNode)
+      );
+
+      if (!needsUpdate) return currentNodes;
+
+      return currentNodes.map((node) => {
+        if (node.type === 'apiRequest') {
+          return {
+            ...node,
+            data: {
+              ...node.data,
+              onRequestSent: handleRequestSent,
+              onDelete: handleDeleteNode,
+            },
+          };
+        }
+        return node;
+      });
+    });
+  }, [handleRequestSent, handleDeleteNode, setNodes]);
 
   const onConnect = useCallback(
     (params: Connection) => setEdges((eds) => addEdge(params, eds)),
@@ -130,7 +167,7 @@ export default function Home() {
 
     setNodes((nds) => [...nds, newNode]);
     setNodeId(nodeId + 1);
-  }, [nodeId, handleDeleteNode, setNodes]);
+  }, [nodeId, handleRequestSent, handleDeleteNode, setNodes]);
 
   const handleReset = useCallback(() => {
     setNodes(initialNodes);

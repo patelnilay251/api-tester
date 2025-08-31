@@ -93,7 +93,11 @@ const ApiRequestNode = memo(({ id, data, selected }: ApiRequestNodeProps) => {
             const result = await res.json();
 
             if (res.ok) {
+                console.log('ApiRequestNode: Calling onRequestSent', { id, request, result });
+                console.log('onRequestSent function:', data.onRequestSent);
                 data.onRequestSent(id, request, result);
+            } else {
+                console.error('Request failed with status:', res.status, result);
             }
         } catch (err) {
             console.error('Request failed:', err);
