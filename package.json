@@ -9,7 +9,6 @@
     "lint": "eslint"
   },
   "dependencies": {
-    "@next/font": "^14.2.15",
     "@xyflow/react": "^12.8.4",
     "framer-motion": "^12.23.12",
     "lucide-react": "^0.542.0",
