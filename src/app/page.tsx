@@ -11,7 +11,7 @@ import {
   Edge,
   Node
 } from '@xyflow/react';
-import { Plus, Zap, RotateCcw, Moon, Sun } from 'lucide-react';
+import { Plus, Zap, RotateCcw, Moon, Sun, Menu, X, Settings, Info, Github, Coffee } from 'lucide-react';
 
 import ApiRequestNode from '@/components/ApiRequestNode';
 import ResponseNode from '@/components/ResponseNode';
@@ -64,6 +64,7 @@ export default function Home() {
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [nodeId, setNodeId] = useState(0);
   const [nodeNames, setNodeNames] = useState<Record<string, string>>({});
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   const handleNameChange = useCallback((nodeId: string, newName: string) => {
     setNodeNames(prev => ({
@@ -314,8 +315,183 @@ export default function Home() {
     setNodeNames({});
   }, [initialNodes, setNodes, setEdges]);
 
+  const toggleMenu = useCallback(() => {
+    setIsMenuOpen(prev => !prev);
+  }, []);
+
+  const closeMenu = useCallback(() => {
+    setIsMenuOpen(false);
+  }, []);
+
   return (
     <div className="h-screen w-screen canvas-background">
+      {/* Hamburger Menu */}
+      <motion.div
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="absolute top-6 left-6 z-50"
+      >
+        {/* Hamburger Button */}
+        <motion.button
+          onClick={toggleMenu}
+          className="flex items-center justify-center w-12 h-12 glass-themed rounded-2xl transition-all hover:bg-black/5 dark:hover:bg-white/5"
+          style={{
+            background: 'var(--node-bg)',
+            borderColor: 'var(--node-border)',
+            boxShadow: 'var(--node-shadow)',
+            color: 'var(--node-text)'
+          }}
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+        >
+          <motion.div
+            animate={isMenuOpen ? { rotate: 180 } : { rotate: 0 }}
+            transition={{ duration: 0.2 }}
+          >
+            {isMenuOpen ? (
+              <X className="w-5 h-5" />
+            ) : (
+              <Menu className="w-5 h-5" />
+            )}
+          </motion.div>
+        </motion.button>
+
+        {/* Menu Panel */}
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95, y: -10 }}
+          animate={isMenuOpen ?
+            { opacity: 1, scale: 1, y: 0 } :
+            { opacity: 0, scale: 0.95, y: -10 }
+          }
+          transition={{ duration: 0.2, ease: "easeOut" }}
+          className={`absolute top-16 left-0 w-64 glass-themed rounded-2xl overflow-hidden ${isMenuOpen ? 'pointer-events-auto' : 'pointer-events-none'
+            }`}
+          style={{
+            background: 'var(--node-bg)',
+            borderColor: 'var(--node-border)',
+            boxShadow: 'var(--node-shadow)'
+          }}
+        >
+          <div className="p-4">
+            {/* Menu Header */}
+            <div className="mb-4">
+              <h3 className="font-semibold text-sm mb-1" style={{ color: 'var(--node-text)' }}>
+                API Flow Tester
+              </h3>
+              <p className="text-xs" style={{ color: 'var(--node-text-muted)' }}>
+                Visual API testing tool
+              </p>
+            </div>
+
+            {/* Menu Items */}
+            <div className="space-y-1">
+              <motion.button
+                whileHover={{ x: 4 }}
+                whileTap={{ scale: 0.98 }}
+                className="w-full flex items-center gap-3 px-3 py-2.5 text-sm rounded-xl transition-all hover:bg-black/5 dark:hover:bg-white/5"
+                style={{ color: 'var(--node-text)' }}
+                onClick={closeMenu}
+              >
+                <Settings className="w-4 h-4" style={{ color: 'var(--node-text-muted)' }} />
+                Settings
+              </motion.button>
+
+              <motion.button
+                whileHover={{ x: 4 }}
+                whileTap={{ scale: 0.98 }}
+                className="w-full flex items-center gap-3 px-3 py-2.5 text-sm rounded-xl transition-all hover:bg-black/5 dark:hover:bg-white/5"
+                style={{ color: 'var(--node-text)' }}
+                onClick={closeMenu}
+              >
+                <Info className="w-4 h-4" style={{ color: 'var(--node-text-muted)' }} />
+                About
+              </motion.button>
+
+              <motion.button
+                whileHover={{ x: 4 }}
+                whileTap={{ scale: 0.98 }}
+                className="w-full flex items-center gap-3 px-3 py-2.5 text-sm rounded-xl transition-all hover:bg-black/5 dark:hover:bg-white/5"
+                style={{ color: 'var(--node-text)' }}
+                onClick={() => {
+                  window.open('https://github.com', '_blank');
+                  closeMenu();
+                }}
+              >
+                <Github className="w-4 h-4" style={{ color: 'var(--node-text-muted)' }} />
+                GitHub
+              </motion.button>
+
+              <div className="border-t my-2" style={{ borderColor: 'var(--node-border)' }}></div>
+
+              <motion.button
+                whileHover={{ x: 4 }}
+                whileTap={{ scale: 0.98 }}
+                className="w-full flex items-center gap-3 px-3 py-2.5 text-sm rounded-xl transition-all hover:bg-black/5 dark:hover:bg-white/5"
+                style={{ color: 'var(--node-text)' }}
+                onClick={closeMenu}
+              >
+                <Coffee className="w-4 h-4" style={{ color: 'var(--node-text-muted)' }} />
+                Support Us
+              </motion.button>
+            </div>
+
+            {/* Theme Toggle in Menu */}
+            <div className="mt-4 pt-3 border-t" style={{ borderColor: 'var(--node-border)' }}>
+              <motion.button
+                whileHover={{ x: 4 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => {
+                  toggleTheme();
+                  closeMenu();
+                }}
+                className="w-full flex items-center justify-between px-3 py-2.5 text-sm rounded-xl transition-all hover:bg-black/5 dark:hover:bg-white/5"
+                style={{ color: 'var(--node-text)' }}
+              >
+                <div className="flex items-center gap-3">
+                  {theme === 'dark' ? (
+                    <Sun className="w-4 h-4" style={{ color: 'var(--node-text-muted)' }} />
+                  ) : (
+                    <Moon className="w-4 h-4" style={{ color: 'var(--node-text-muted)' }} />
+                  )}
+                  <span>
+                    {theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
+                  </span>
+                </div>
+                <motion.div
+                  animate={{ rotate: theme === 'dark' ? 0 : 180 }}
+                  transition={{ duration: 0.3 }}
+                  className="w-6 h-3 rounded-full border"
+                  style={{
+                    backgroundColor: theme === 'dark' ? 'var(--button-primary-bg)' : 'var(--node-input-bg)',
+                    borderColor: 'var(--node-border)'
+                  }}
+                >
+                  <motion.div
+                    animate={{ x: theme === 'dark' ? 12 : 0 }}
+                    transition={{ duration: 0.3 }}
+                    className="w-3 h-3 rounded-full"
+                    style={{
+                      backgroundColor: 'var(--node-text)'
+                    }}
+                  />
+                </motion.div>
+              </motion.button>
+            </div>
+          </div>
+        </motion.div>
+      </motion.div>
+
+      {/* Backdrop */}
+      {isMenuOpen && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          onClick={closeMenu}
+          className="absolute inset-0 z-40 bg-black/20 backdrop-blur-sm"
+        />
+      )}
+
       {/* Control Panel */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
