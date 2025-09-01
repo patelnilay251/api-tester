@@ -1,36 +1,130 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# API Flow Tester
 
-## Getting Started
+A modern, visual API testing tool built with Next.js and React Flow. Create interactive node-based workflows to test and visualize API requests and responses.
 
-First, run the development server:
+## ✨ Features
+
+### 🎨 **Visual Interface**
+- **Node-based workflow** - Drag and drop API request nodes
+- **Real-time connections** - Visual flow from requests to responses
+- **Clean grid canvas** - Fine 10px grid for precise alignment
+- **Responsive design** - Works on all screen sizes
+
+### 🌙 **Theme Support**
+- **Dark/Light mode** - Toggle with sun/moon button
+- **Automatic detection** - Respects system preferences
+- **Theme persistence** - Remembers your choice
+- **Smooth transitions** - All elements adapt seamlessly
+
+### 🔗 **API Testing**
+- **Multiple HTTP methods** - GET, POST, PUT, DELETE, PATCH
+- **Custom headers** - JSON or key-value format support
+- **Request body** - For POST/PUT/PATCH operations
+- **Response visualization** - Status codes, headers, and data
+- **Response time tracking** - Performance metrics
+
+### 🎛️ **Node Management**
+- **Expandable forms** - Compact and detailed views
+- **Editable names** - Rename nodes for organization
+- **Delete operations** - Remove single nodes or entire chains
+- **Auto-positioning** - Smart placement of response nodes
+
+## 🚀 Getting Started
+
+### Prerequisites
+- Node.js 18+ 
+- npm or yarn
+
+### Installation
 
 ```bash
+# Clone the repository
+git clone <your-repo-url>
+cd api-tester
+
+# Install dependencies
+npm install
+
+# Start development server
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) to view the application.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Test Server (Optional)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+A companion test server is included for testing:
 
-## Learn More
+```bash
+cd test-api-server
+npm install
+npm start
+```
 
-To learn more about Next.js, take a look at the following resources:
+The test server runs on port 3001 and provides sample endpoints for testing.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## 🎯 Usage
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+1. **Create API Request**
+   - Click "Add API Node" to create a new request
+   - Enter the URL and select HTTP method
+   - Add headers and request body if needed
 
-## Deploy on Vercel
+2. **Send Request**
+   - Click "Send Request" to execute
+   - Response node appears automatically
+   - View status, headers, and response data
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+3. **Manage Workflow**
+   - Drag nodes to reorganize
+   - Rename nodes for better organization
+   - Delete individual nodes or entire chains
+   - Toggle between light/dark themes
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## 🛠️ Tech Stack
+
+- **Frontend**: Next.js 15, React 19, TypeScript
+- **UI Framework**: TailwindCSS 4
+- **Flow Editor**: React Flow (@xyflow/react)
+- **Animations**: Framer Motion
+- **Icons**: Lucide React
+- **Test Server**: Express.js
+
+## 📁 Project Structure
+
+```
+api-tester/
+├── src/
+│   ├── app/                 # Next.js app router
+│   ├── components/          # React components
+│   │   ├── ApiRequestNode.tsx
+│   │   └── ResponseNode.tsx
+│   └── contexts/           # React contexts
+│       └── ThemeContext.tsx
+├── test-api-server/        # Express test server
+└── public/                 # Static assets
+```
+
+## 🎨 Design Features
+
+- **Glassmorphism effects** with backdrop blur
+- **Custom CSS variables** for consistent theming
+- **Grid-based canvas** for visual alignment
+- **Smooth animations** and transitions
+- **Professional color schemes** for both themes
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Test thoroughly
+5. Submit a pull request
+
+## 📄 License
+
+This project is open source and available under the [MIT License](LICENSE).
+
+---
+
+Built with ❤️ using Next.js and React Flow and Cursor

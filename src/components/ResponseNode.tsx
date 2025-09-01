@@ -3,6 +3,7 @@
 import { memo, useState } from 'react';
 import { Handle, Position } from '@xyflow/react';
 import { motion } from 'framer-motion';
+import { useTheme } from '@/contexts/ThemeContext';
 import {
     CheckCircle,
     XCircle,
@@ -42,6 +43,7 @@ interface ResponseNodeProps {
 }
 
 const ResponseNode = memo(({ id, data, selected }: ResponseNodeProps) => {
+    const { theme } = useTheme();
     const [showDetails, setShowDetails] = useState(false);
     const [isEditingName, setIsEditingName] = useState(false);
     const { response, requestData } = data;
@@ -99,13 +101,25 @@ const ResponseNode = memo(({ id, data, selected }: ResponseNodeProps) => {
         <motion.div
             initial={{ scale: 0.8, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            className={`group w-72 bg-white/95 backdrop-blur-xl rounded-3xl shadow-xl border border-white/20 ${selected ? 'ring-2 ring-black/20' : ''
-                }`}
+            className={`group w-72 node-themed backdrop-blur-xl rounded-3xl ${selected ? 'ring-2' : ''}`}
+            style={{
+                background: 'var(--node-bg)',
+                borderColor: 'var(--node-border)',
+                boxShadow: 'var(--node-shadow)',
+                ...(selected && {
+                    ringColor: theme === 'dark' ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.2)'
+                })
+            }}
         >
-            <Handle type="target" position={Position.Left} className="w-3 h-3 bg-black/20" />
+            <Handle
+                type="target"
+                position={Position.Left}
+                className="w-3 h-3"
+                style={{ backgroundColor: 'var(--node-text-muted)' }}
+            />
 
             {/* Header */}
-            <div className="p-4 border-b border-black/10">
+            <div className="p-4 border-b node-header" style={{ borderColor: 'var(--node-border)' }}>
                 {/* Title and Actions Row */}
                 <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-1 flex-1 min-w-0">
@@ -117,7 +131,12 @@ const ResponseNode = memo(({ id, data, selected }: ResponseNodeProps) => {
                                     onChange={(e) => setCurrentName(e.target.value)}
                                     onKeyDown={handleNameKeyPress}
                                     onBlur={handleNameSave}
-                                    className="flex-1 px-2 py-1 text-xs font-medium text-black/80 bg-white border border-black/20 rounded focus:outline-none focus:ring-1 focus:ring-black/30"
+                                    className="flex-1 px-2 py-1 text-xs font-medium rounded focus:outline-none focus:ring-1 node-input"
+                                    style={{
+                                        backgroundColor: 'var(--node-input-bg)',
+                                        borderColor: 'var(--node-border)',
+                                        color: 'var(--node-text)'
+                                    }}
                                     autoFocus
                                     maxLength={50}
                                 />
@@ -131,15 +150,19 @@ const ResponseNode = memo(({ id, data, selected }: ResponseNodeProps) => {
                             </div>
                         ) : (
                             <div className="flex items-center gap-1 flex-1 min-w-0">
-                                <span className="text-xs font-medium text-black/80 truncate" title={currentName}>
+                                <span
+                                    className="text-xs font-medium truncate"
+                                    title={currentName}
+                                    style={{ color: 'var(--node-text)' }}
+                                >
                                     {currentName}
                                 </span>
                                 <button
                                     onClick={handleNameEdit}
-                                    className="p-1 hover:bg-black/5 rounded transition-colors opacity-0 group-hover:opacity-100"
+                                    className="p-1 rounded transition-colors opacity-0 group-hover:opacity-100 hover:bg-black/5 dark:hover:bg-white/5"
                                     title="Edit name"
                                 >
-                                    <Edit3 className="w-3 h-3 text-black/60" />
+                                    <Edit3 className="w-3 h-3" style={{ color: 'var(--node-text-muted)' }} />
                                 </button>
                             </div>
                         )}
@@ -148,20 +171,23 @@ const ResponseNode = memo(({ id, data, selected }: ResponseNodeProps) => {
                     <div className="flex items-center gap-1">
                         <button
                             onClick={() => setShowDetails(!showDetails)}
-                            className="p-1.5 hover:bg-black/5 rounded-lg transition-colors"
+                            className="p-1.5 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition-colors"
                         >
-                            {showDetails ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                            {showDetails ?
+                                <EyeOff className="w-3 h-3" style={{ color: 'var(--node-text-muted)' }} /> :
+                                <Eye className="w-3 h-3" style={{ color: 'var(--node-text-muted)' }} />
+                            }
                         </button>
                         <button
                             onClick={handleCopy}
-                            className="p-1.5 hover:bg-black/5 rounded-lg transition-colors"
+                            className="p-1.5 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition-colors"
                         >
-                            <Copy className="w-3 h-3 text-black/60" />
+                            <Copy className="w-3 h-3" style={{ color: 'var(--node-text-muted)' }} />
                         </button>
                         {data.onDelete && (
                             <button
                                 onClick={() => data.onDelete?.(id)}
-                                className="p-1.5 hover:bg-red-50 rounded-lg transition-colors"
+                                className="p-1.5 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
                                 title="Delete this response node"
                             >
                                 <X className="w-3 h-3 text-red-500" />
@@ -171,7 +197,7 @@ const ResponseNode = memo(({ id, data, selected }: ResponseNodeProps) => {
                 </div>
 
                 {/* Method and URL Row */}
-                <div className="flex items-center gap-2 text-xs text-black/40 mb-2">
+                <div className="flex items-center gap-2 text-xs mb-2" style={{ color: 'var(--node-text-muted)' }}>
                     <span className="font-mono">{requestData.method}</span>
                     <span className="truncate">
                         {new URL(requestData.url).pathname}
@@ -185,7 +211,7 @@ const ResponseNode = memo(({ id, data, selected }: ResponseNodeProps) => {
                         {response.status} {response.statusText}
                     </div>
 
-                    <div className="flex items-center gap-1 text-xs text-black/60">
+                    <div className="flex items-center gap-1 text-xs" style={{ color: 'var(--node-text-muted)' }}>
                         <Clock className="w-3 h-3" />
                         {response.responseTime}ms
                     </div>
@@ -198,16 +224,28 @@ const ResponseNode = memo(({ id, data, selected }: ResponseNodeProps) => {
                     <div className="space-y-3">
                         {/* Response Headers */}
                         <div>
-                            <h4 className="text-xs font-medium text-black/60 mb-1">Headers</h4>
-                            <pre className="bg-black/5 rounded-lg p-2 text-xs font-mono text-black/70 overflow-x-auto max-h-20 overflow-y-auto">
+                            <h4 className="text-xs font-medium mb-1" style={{ color: 'var(--node-text-muted)' }}>Headers</h4>
+                            <pre
+                                className="rounded-lg p-2 text-xs font-mono overflow-x-auto max-h-20 overflow-y-auto"
+                                style={{
+                                    backgroundColor: 'var(--node-input-bg)',
+                                    color: 'var(--node-text)'
+                                }}
+                            >
                                 {JSON.stringify(response.headers, null, 2)}
                             </pre>
                         </div>
 
                         {/* Response Body */}
                         <div>
-                            <h4 className="text-xs font-medium text-black/60 mb-1">Response Body</h4>
-                            <pre className="bg-black/5 rounded-lg p-2 text-xs font-mono text-black/70 overflow-x-auto max-h-32 overflow-y-auto">
+                            <h4 className="text-xs font-medium mb-1" style={{ color: 'var(--node-text-muted)' }}>Response Body</h4>
+                            <pre
+                                className="rounded-lg p-2 text-xs font-mono overflow-x-auto max-h-32 overflow-y-auto"
+                                style={{
+                                    backgroundColor: 'var(--node-input-bg)',
+                                    color: 'var(--node-text)'
+                                }}
+                            >
                                 {typeof response.data === 'string'
                                     ? response.data
                                     : JSON.stringify(response.data, null, 2)
@@ -217,14 +255,25 @@ const ResponseNode = memo(({ id, data, selected }: ResponseNodeProps) => {
                     </div>
                 ) : (
                     <div className="space-y-2">
-                        <div className="text-xs text-black/60">Response Preview</div>
-                        <div className="bg-black/5 rounded-lg p-2 text-xs font-mono text-black/70 max-h-16 overflow-hidden relative">
+                        <div className="text-xs" style={{ color: 'var(--node-text-muted)' }}>Response Preview</div>
+                        <div
+                            className="rounded-lg p-2 text-xs font-mono max-h-16 overflow-hidden relative"
+                            style={{
+                                backgroundColor: 'var(--node-input-bg)',
+                                color: 'var(--node-text)'
+                            }}
+                        >
                             {typeof response.data === 'string'
                                 ? response.data.slice(0, 100)
                                 : JSON.stringify(response.data, null, 2).slice(0, 100)
                             }
                             {(typeof response.data === 'string' ? response.data : JSON.stringify(response.data)).length > 100 && (
-                                <div className="absolute bottom-0 right-0 bg-gradient-to-l from-black/5 to-transparent w-8 h-4" />
+                                <div
+                                    className="absolute bottom-0 right-0 bg-gradient-to-l to-transparent w-8 h-4"
+                                    style={{
+                                        background: `linear-gradient(to left, var(--node-input-bg), transparent)`
+                                    }}
+                                />
                             )}
                         </div>
                     </div>

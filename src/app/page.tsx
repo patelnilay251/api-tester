@@ -4,21 +4,18 @@ import { useState, useCallback, useMemo, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
   ReactFlow,
-  Controls,
-  Background,
   useNodesState,
   useEdgesState,
   addEdge,
   Connection,
   Edge,
-  Node,
-  BackgroundVariant,
-  Panel
+  Node
 } from '@xyflow/react';
-import { Plus, Zap, RotateCcw } from 'lucide-react';
+import { Plus, Zap, RotateCcw, Moon, Sun } from 'lucide-react';
 
 import ApiRequestNode from '@/components/ApiRequestNode';
 import ResponseNode from '@/components/ResponseNode';
+import { useTheme } from '@/contexts/ThemeContext';
 
 import '@xyflow/react/dist/style.css';
 
@@ -62,6 +59,7 @@ const nodeTypes = {
 };
 
 export default function Home() {
+  const { theme, toggleTheme } = useTheme();
   const [nodes, setNodes, onNodesChange] = useNodesState<AppNode>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [nodeId, setNodeId] = useState(0);
@@ -179,7 +177,10 @@ export default function Home() {
         source: nodeId,
         target: responseNodeId,
         type: 'default',
-        style: { stroke: '#000', strokeWidth: 2 },
+        style: {
+          stroke: theme === 'dark' ? 'rgba(255, 255, 255, 0.6)' : 'rgba(0, 0, 0, 0.6)',
+          strokeWidth: 2
+        },
         animated: true,
       };
 
@@ -256,9 +257,32 @@ export default function Home() {
     });
   }, [handleRequestSent, handleDeleteNode, handleDeleteSingleNode, handleNameChange, nodeNames, setNodes]);
 
+  // Update edge colors when theme changes
+  useEffect(() => {
+    setEdges((currentEdges) => {
+      return currentEdges.map((edge) => ({
+        ...edge,
+        style: {
+          ...edge.style,
+          stroke: theme === 'dark' ? 'rgba(255, 255, 255, 0.6)' : 'rgba(0, 0, 0, 0.6)',
+        }
+      }));
+    });
+  }, [theme, setEdges]);
+
   const onConnect = useCallback(
-    (params: Connection) => setEdges((eds) => addEdge(params, eds)),
-    [setEdges]
+    (params: Connection) => {
+      const newEdge = {
+        ...params,
+        style: {
+          stroke: theme === 'dark' ? 'rgba(255, 255, 255, 0.6)' : 'rgba(0, 0, 0, 0.6)',
+          strokeWidth: 2
+        },
+        animated: true,
+      };
+      setEdges((eds) => addEdge(newEdge, eds));
+    },
+    [setEdges, theme]
   );
 
   const handleAddNewApiNode = useCallback(() => {
@@ -291,34 +315,68 @@ export default function Home() {
   }, [initialNodes, setNodes, setEdges]);
 
   return (
-    <div className="h-screen w-screen bg-gradient-to-br from-white to-gray-50">
+    <div className="h-screen w-screen canvas-background">
       {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="absolute top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-xl border-b border-black/10"
+        className="absolute top-0 left-0 right-0 z-50 glass backdrop-blur-xl border-b"
+        style={{ borderColor: 'var(--node-border)' }}
       >
         <div className="flex items-center justify-between px-6 py-4">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-xl bg-black flex items-center justify-center">
-              <Zap className="w-4 h-4 text-white" />
+            <div
+              className="w-8 h-8 rounded-xl flex items-center justify-center"
+              style={{
+                backgroundColor: theme === 'dark' ? 'white' : 'black'
+              }}
+            >
+              <Zap
+                className="w-4 h-4"
+                style={{
+                  color: theme === 'dark' ? 'black' : 'white'
+                }}
+              />
             </div>
-            <h1 className="text-xl font-playfair font-light text-black">
+            <h1
+              className="text-xl font-playfair font-light"
+              style={{ color: 'var(--node-text)' }}
+            >
               API Flow Tester
             </h1>
           </div>
 
           <div className="flex items-center gap-2">
             <button
+              onClick={toggleTheme}
+              className="flex items-center gap-2 px-3 py-2 rounded-xl transition-colors hover:bg-black/5 dark:hover:bg-white/5"
+              style={{ color: 'var(--node-text)' }}
+            >
+              {theme === 'dark' ? (
+                <Sun className="w-4 h-4" />
+              ) : (
+                <Moon className="w-4 h-4" />
+              )}
+            </button>
+            <button
               onClick={handleAddNewApiNode}
-              className="flex items-center gap-2 px-4 py-2 bg-black text-white rounded-xl hover:bg-black/90 transition-colors"
+              className="flex items-center gap-2 px-4 py-2 rounded-xl transition-colors"
+              style={{
+                backgroundColor: theme === 'dark' ? 'white' : 'black',
+                color: theme === 'dark' ? 'black' : 'white'
+              }}
             >
               <Plus className="w-4 h-4" />
               Add API Node
             </button>
             <button
               onClick={handleReset}
-              className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-black rounded-xl hover:bg-gray-200 transition-colors"
+              className="flex items-center gap-2 px-4 py-2 rounded-xl transition-colors"
+              style={{
+                backgroundColor: 'var(--node-input-bg)',
+                color: 'var(--node-text)',
+                border: '1px solid var(--node-border)'
+              }}
             >
               <RotateCcw className="w-4 h-4" />
               Reset
@@ -341,32 +399,8 @@ export default function Home() {
             padding: 0.2,
           }}
           defaultViewport={{ x: 0, y: 0, zoom: 0.8 }}
+          proOptions={{ hideAttribution: true }}
         >
-          <Background
-            variant={BackgroundVariant.Dots}
-            gap={20}
-            size={1}
-            color="#000000"
-            style={{ opacity: 0.1 }}
-          />
-          <Controls
-            style={{
-              backgroundColor: 'rgba(255, 255, 255, 0.9)',
-              border: '1px solid rgba(0, 0, 0, 0.1)',
-              borderRadius: '12px',
-            }}
-          />
-
-          {/* Custom Panel for Instructions */}
-          <Panel position="bottom-left" className="bg-white/90 backdrop-blur-xl rounded-xl p-4 border border-black/10 max-w-xs">
-            <div className="text-xs text-black/60 space-y-1">
-              <p className="font-medium">💡 Tips:</p>
-              <p>• Drag nodes to reposition</p>
-              <p>• Zoom and pan the canvas</p>
-              <p>• Send requests to create response branches</p>
-              <p>• Delete nodes with the ❌ button</p>
-            </div>
-          </Panel>
         </ReactFlow>
       </div>
     </div>

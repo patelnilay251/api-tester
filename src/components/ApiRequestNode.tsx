@@ -3,6 +3,7 @@
 import { useState, useCallback, memo } from 'react';
 import { Handle, Position, useReactFlow } from '@xyflow/react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useTheme } from '@/contexts/ThemeContext';
 import {
     Send,
     Globe,
@@ -36,6 +37,7 @@ interface ApiRequestNodeProps {
 }
 
 const ApiRequestNode = memo(({ id, data, selected }: ApiRequestNodeProps) => {
+    const { theme } = useTheme();
     const [request, setRequest] = useState<RequestData>({
         url: '',
         method: 'GET',
@@ -144,18 +146,34 @@ const ApiRequestNode = memo(({ id, data, selected }: ApiRequestNodeProps) => {
         <motion.div
             initial={{ scale: 0.8, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            className={`group relative ${isExpanded ? 'w-96' : 'w-80'
-                } bg-white/95 backdrop-blur-xl rounded-3xl shadow-xl border border-white/20 ${selected ? 'ring-2 ring-black/20' : ''
-                }`}
+            className={`group relative ${isExpanded ? 'w-96' : 'w-80'} node-themed backdrop-blur-xl rounded-3xl ${selected ? 'ring-2' : ''}`}
+            style={{
+                background: 'var(--node-bg)',
+                borderColor: 'var(--node-border)',
+                boxShadow: 'var(--node-shadow)',
+                ...(selected && {
+                    ringColor: theme === 'dark' ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.2)'
+                })
+            }}
         >
-            <Handle type="source" position={Position.Right} className="w-3 h-3 bg-black/20" />
-            <Handle type="target" position={Position.Left} className="w-3 h-3 bg-black/20" />
+            <Handle
+                type="source"
+                position={Position.Right}
+                className="w-3 h-3"
+                style={{ backgroundColor: 'var(--node-text-muted)' }}
+            />
+            <Handle
+                type="target"
+                position={Position.Left}
+                className="w-3 h-3"
+                style={{ backgroundColor: 'var(--node-text-muted)' }}
+            />
 
             {/* Header */}
-            <div className="flex items-center justify-between p-4 border-b border-black/10">
+            <div className="flex items-center justify-between p-4 border-b node-header" style={{ borderColor: 'var(--node-border)' }}>
                 <div className="flex items-center gap-2 flex-1 min-w-0">
-                    <div className="w-6 h-6 rounded-lg bg-black/5 flex items-center justify-center">
-                        <Globe className="w-3 h-3 text-black/60" />
+                    <div className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ backgroundColor: 'var(--node-input-bg)' }}>
+                        <Globe className="w-3 h-3" style={{ color: 'var(--node-text-muted)' }} />
                     </div>
                     {isEditingName ? (
                         <div className="flex items-center gap-1 flex-1">
@@ -165,7 +183,12 @@ const ApiRequestNode = memo(({ id, data, selected }: ApiRequestNodeProps) => {
                                 onChange={(e) => setCurrentName(e.target.value)}
                                 onKeyDown={handleNameKeyPress}
                                 onBlur={handleNameSave}
-                                className="flex-1 px-2 py-1 text-sm font-medium text-black/80 bg-white border border-black/20 rounded focus:outline-none focus:ring-1 focus:ring-black/30"
+                                className="flex-1 px-2 py-1 text-sm font-medium rounded focus:outline-none focus:ring-1 node-input"
+                                style={{
+                                    backgroundColor: 'var(--node-input-bg)',
+                                    borderColor: 'var(--node-border)',
+                                    color: 'var(--node-text)'
+                                }}
                                 autoFocus
                                 maxLength={50}
                             />
@@ -179,15 +202,19 @@ const ApiRequestNode = memo(({ id, data, selected }: ApiRequestNodeProps) => {
                         </div>
                     ) : (
                         <div className="flex items-center gap-1 flex-1 min-w-0">
-                            <span className="font-medium text-sm text-black/80 truncate" title={currentName}>
+                            <span
+                                className="font-medium text-sm truncate"
+                                title={currentName}
+                                style={{ color: 'var(--node-text)' }}
+                            >
                                 {currentName}
                             </span>
                             <button
                                 onClick={handleNameEdit}
-                                className="p-1 hover:bg-black/5 rounded transition-colors opacity-0 group-hover:opacity-100"
+                                className="p-1 rounded transition-colors opacity-0 group-hover:opacity-100 hover:bg-black/5 dark:hover:bg-white/5"
                                 title="Edit name"
                             >
-                                <Edit3 className="w-3 h-3 text-black/60" />
+                                <Edit3 className="w-3 h-3" style={{ color: 'var(--node-text-muted)' }} />
                             </button>
                         </div>
                     )}
@@ -196,19 +223,22 @@ const ApiRequestNode = memo(({ id, data, selected }: ApiRequestNodeProps) => {
                 <div className="flex items-center gap-1">
                     <button
                         onClick={handleFocus}
-                        className="p-1.5 hover:bg-black/5 rounded-lg transition-colors"
+                        className="p-1.5 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition-colors"
                     >
-                        <Maximize2 className="w-3 h-3 text-black/60" />
+                        <Maximize2 className="w-3 h-3" style={{ color: 'var(--node-text-muted)' }} />
                     </button>
                     <button
                         onClick={() => setIsExpanded(!isExpanded)}
-                        className="p-1.5 hover:bg-black/5 rounded-lg transition-colors"
+                        className="p-1.5 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition-colors"
                     >
-                        {isExpanded ? <Minimize2 className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
+                        {isExpanded ?
+                            <Minimize2 className="w-3 h-3" style={{ color: 'var(--node-text-muted)' }} /> :
+                            <Plus className="w-3 h-3" style={{ color: 'var(--node-text-muted)' }} />
+                        }
                     </button>
                     <button
                         onClick={() => data.onDelete(id)}
-                        className="p-1.5 hover:bg-red-50 rounded-lg transition-colors"
+                        className="p-1.5 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
                     >
                         <X className="w-3 h-3 text-red-500" />
                     </button>
@@ -223,7 +253,12 @@ const ApiRequestNode = memo(({ id, data, selected }: ApiRequestNodeProps) => {
                         <select
                             value={request.method}
                             onChange={(e) => setRequest({ ...request, method: e.target.value })}
-                            className="px-2 py-1.5 text-xs font-mono bg-black/5 rounded-lg border-0 focus:ring-1 focus:ring-black/20"
+                            className="px-2 py-1.5 text-xs font-mono rounded-lg border-0 focus:ring-1 node-input"
+                            style={{
+                                backgroundColor: 'var(--node-input-bg)',
+                                color: 'var(--node-text)',
+                                borderColor: 'var(--node-border)'
+                            }}
                         >
                             <option value="GET">GET</option>
                             <option value="POST">POST</option>
@@ -237,7 +272,12 @@ const ApiRequestNode = memo(({ id, data, selected }: ApiRequestNodeProps) => {
                             placeholder="https://api.example.com/endpoint"
                             value={request.url}
                             onChange={(e) => setRequest({ ...request, url: e.target.value })}
-                            className="flex-1 px-3 py-1.5 text-xs bg-black/5 rounded-lg border-0 focus:ring-1 focus:ring-black/20 placeholder-black/40"
+                            className="flex-1 px-3 py-1.5 text-xs rounded-lg border-0 focus:ring-1 node-input"
+                            style={{
+                                backgroundColor: 'var(--node-input-bg)',
+                                color: 'var(--node-text)',
+                                borderColor: 'var(--node-border)'
+                            }}
                             required
                         />
                     </div>
@@ -253,7 +293,10 @@ const ApiRequestNode = memo(({ id, data, selected }: ApiRequestNodeProps) => {
                             >
                                 {/* Headers */}
                                 <div>
-                                    <label className="block text-xs font-medium text-black/60 mb-1">
+                                    <label
+                                        className="block text-xs font-medium mb-1"
+                                        style={{ color: 'var(--node-text-muted)' }}
+                                    >
                                         Headers
                                     </label>
                                     <textarea
@@ -261,14 +304,22 @@ const ApiRequestNode = memo(({ id, data, selected }: ApiRequestNodeProps) => {
                                         value={request.headers}
                                         onChange={(e) => setRequest({ ...request, headers: e.target.value })}
                                         rows={2}
-                                        className="w-full px-2 py-1.5 text-xs font-mono bg-black/5 rounded-lg border-0 focus:ring-1 focus:ring-black/20 placeholder-black/40 resize-none"
+                                        className="w-full px-2 py-1.5 text-xs font-mono rounded-lg border-0 focus:ring-1 resize-none node-input"
+                                        style={{
+                                            backgroundColor: 'var(--node-input-bg)',
+                                            color: 'var(--node-text)',
+                                            borderColor: 'var(--node-border)'
+                                        }}
                                     />
                                 </div>
 
                                 {/* Request Body */}
                                 {['POST', 'PUT', 'PATCH'].includes(request.method) && (
                                     <div>
-                                        <label className="block text-xs font-medium text-black/60 mb-1">
+                                        <label
+                                            className="block text-xs font-medium mb-1"
+                                            style={{ color: 'var(--node-text-muted)' }}
+                                        >
                                             Request Body
                                         </label>
                                         <textarea
@@ -276,7 +327,12 @@ const ApiRequestNode = memo(({ id, data, selected }: ApiRequestNodeProps) => {
                                             value={request.data}
                                             onChange={(e) => setRequest({ ...request, data: e.target.value })}
                                             rows={3}
-                                            className="w-full px-2 py-1.5 text-xs font-mono bg-black/5 rounded-lg border-0 focus:ring-1 focus:ring-black/20 placeholder-black/40 resize-none"
+                                            className="w-full px-2 py-1.5 text-xs font-mono rounded-lg border-0 focus:ring-1 resize-none node-input"
+                                            style={{
+                                                backgroundColor: 'var(--node-input-bg)',
+                                                color: 'var(--node-text)',
+                                                borderColor: 'var(--node-border)'
+                                            }}
                                         />
                                     </div>
                                 )}
@@ -288,7 +344,11 @@ const ApiRequestNode = memo(({ id, data, selected }: ApiRequestNodeProps) => {
                     <button
                         type="submit"
                         disabled={loading || !request.url}
-                        className="w-full bg-black text-white py-2 px-3 rounded-lg text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                        className="w-full py-2 px-3 rounded-lg text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                        style={{
+                            backgroundColor: theme === 'dark' ? 'white' : 'black',
+                            color: theme === 'dark' ? 'black' : 'white'
+                        }}
                     >
                         {loading ? (
                             <>
