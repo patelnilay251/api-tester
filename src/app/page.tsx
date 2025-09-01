@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import {
   ReactFlow,
@@ -11,7 +11,7 @@ import {
   Edge,
   Node
 } from '@xyflow/react';
-import { Plus, Zap, RotateCcw, Moon, Sun, Menu, X, Settings, Info, Github, Coffee } from 'lucide-react';
+import { Plus, Zap, RotateCcw, Moon, Sun, Menu, X, Settings, Info, Github, Coffee, MessageSquare, Send, ChevronDown } from 'lucide-react';
 
 import ApiRequestNode from '@/components/ApiRequestNode';
 import ResponseNode from '@/components/ResponseNode';
@@ -65,6 +65,12 @@ export default function Home() {
   const [nodeId, setNodeId] = useState(0);
   const [nodeNames, setNodeNames] = useState<Record<string, string>>({});
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [chatMessage, setChatMessage] = useState('');
+  const [selectedModel, setSelectedModel] = useState('gpt-4');
+  const chatInputRef = useRef<HTMLInputElement>(null);
+  const [isInteractingWithChat, setIsInteractingWithChat] = useState(false);
+
 
   const handleNameChange = useCallback((nodeId: string, newName: string) => {
     setNodeNames(prev => ({
@@ -323,6 +329,58 @@ export default function Home() {
     setIsMenuOpen(false);
   }, []);
 
+  const toggleChat = useCallback(() => {
+    setIsChatOpen(prev => !prev);
+  }, []);
+
+  const closeChat = useCallback(() => {
+    setIsChatOpen(false);
+  }, []);
+
+  const openChat = useCallback(() => {
+    setIsChatOpen(true);
+    // Focus input after animation completes
+    setTimeout(() => {
+      chatInputRef.current?.focus();
+    }, 250);
+  }, []);
+
+  const handleSendMessage = useCallback(() => {
+    if (!chatMessage.trim()) return;
+
+    // Here you would send the message to your AI API
+    console.log('Sending message:', chatMessage, 'using model:', selectedModel);
+
+    // Clear input after sending
+    setChatMessage('');
+
+    // Close chat after sending with slight delay for better UX
+    setTimeout(() => {
+      setIsChatOpen(false);
+    }, 100);
+  }, [chatMessage, selectedModel]);
+
+  // Keyboard shortcut handler
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key === 'i') {
+        event.preventDefault();
+        if (isChatOpen) {
+          closeChat();
+        } else {
+          openChat();
+        }
+      }
+      if (event.key === 'Escape' && isChatOpen) {
+        event.preventDefault();
+        closeChat();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [openChat, closeChat, isChatOpen]);
+
   return (
     <div className="h-screen w-screen canvas-background">
       {/* Hamburger Menu */}
@@ -492,6 +550,163 @@ export default function Home() {
         />
       )}
 
+      {/* Command+I Chat Button */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="absolute bottom-6 left-6 z-50"
+      >
+        <motion.button
+          onClick={openChat}
+          className="flex items-center gap-2 px-4 py-3 glass-themed rounded-2xl transition-all hover:bg-black/5 dark:hover:bg-white/5"
+          style={{
+            background: 'var(--node-bg)',
+            borderColor: 'var(--node-border)',
+            boxShadow: 'var(--node-shadow)',
+            color: 'var(--node-text)'
+          }}
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+          title="Open Chat Assistant (⌘+I)"
+        >
+          <MessageSquare className="w-4 h-4" />
+          <div className="flex items-center gap-1 text-xs font-mono">
+            <kbd className="px-1 py-0.5 rounded text-xs" style={{
+              backgroundColor: 'var(--node-input-bg)',
+              color: 'var(--node-text-muted)',
+              border: '1px solid var(--node-border)'
+            }}>⌘</kbd>
+            <span style={{ color: 'var(--node-text-muted)' }}>+</span>
+            <kbd className="px-1 py-0.5 rounded text-xs" style={{
+              backgroundColor: 'var(--node-input-bg)',
+              color: 'var(--node-text-muted)',
+              border: '1px solid var(--node-border)'
+            }}>I</kbd>
+          </div>
+        </motion.button>
+      </motion.div>
+
+      {/* Compact Chat Bar */}
+      <motion.div
+        initial={false}
+        animate={isChatOpen ? { opacity: 1, y: 0 } : { opacity: 0, y: 80 }}
+        transition={{
+          duration: 0.25,
+          ease: [0.4, 0.0, 0.2, 1],
+          opacity: { duration: 0.15 }
+        }}
+        className={`fixed bottom-6 left-1/2 transform -translate-x-1/2 z-[9999] w-full max-w-4xl px-6 chat-overlay ${isChatOpen ? 'pointer-events-auto' : 'pointer-events-none'
+          }`}
+        style={{
+          willChange: 'transform, opacity'
+        }}
+      >
+        <div
+          className="flex items-center gap-2 px-4 py-3 glass-themed rounded-2xl chat-bar"
+          style={{
+            background: 'var(--node-bg)',
+            borderColor: 'var(--node-border)',
+            boxShadow: 'var(--node-shadow)'
+          }}
+          onMouseDown={(e) => {
+            e.stopPropagation();
+            setIsInteractingWithChat(true);
+          }}
+          onClick={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
+          onMouseLeave={() => setIsInteractingWithChat(false)}
+        >
+
+          {/* Model Selection */}
+          <div className="relative">
+            <select
+              value={selectedModel}
+              onChange={(e) => setSelectedModel(e.target.value)}
+              className="appearance-none px-3 py-2.5 pr-7 text-xs rounded-xl border-0 focus:ring-0"
+              style={{
+                backgroundColor: 'var(--node-input-bg)',
+                color: 'var(--node-text)',
+                cursor: 'pointer',
+                border: '1px solid var(--node-border)'
+              }}
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <option value="gpt-4">GPT-4</option>
+              <option value="gpt-3.5">GPT-3.5</option>
+              <option value="claude">Claude</option>
+            </select>
+            <ChevronDown className="absolute right-2 top-1/2 transform -translate-y-1/2 w-3 h-3 pointer-events-none" style={{ color: 'var(--node-text-muted)' }} />
+          </div>
+
+          {/* Chat Input */}
+          <div className="flex-1">
+            <input
+              type="text"
+              placeholder="Ask AI about API testing, debugging, automation..."
+              value={chatMessage}
+              onChange={(e) => setChatMessage(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSendMessage();
+                }
+              }}
+              ref={chatInputRef}
+              className="w-full px-4 py-2.5 rounded-xl border-0 focus:ring-0 text-sm"
+              style={{
+                backgroundColor: 'var(--node-input-bg)',
+                color: 'var(--node-text)',
+                cursor: 'text',
+                border: '1px solid var(--node-border)'
+              }}
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex gap-1">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleSendMessage();
+              }}
+              onMouseDown={(e) => e.stopPropagation()}
+              disabled={!chatMessage.trim()}
+              className="px-3 py-2.5 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{
+                backgroundColor: chatMessage.trim() ? 'var(--button-primary-bg)' : 'var(--node-input-bg)',
+                color: chatMessage.trim() ? 'var(--button-primary-text)' : 'var(--node-text-muted)',
+                cursor: chatMessage.trim() ? 'pointer' : 'not-allowed',
+                border: '1px solid var(--node-border)'
+              }}
+              title="Send Message"
+            >
+              <Send className="w-4 h-4" />
+            </button>
+
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                closeChat();
+              }}
+              onMouseDown={(e) => e.stopPropagation()}
+              className="px-3 py-2.5 rounded-xl transition-colors hover:bg-black/5 dark:hover:bg-white/5"
+              style={{
+                backgroundColor: 'var(--node-input-bg)',
+                color: 'var(--node-text-muted)',
+                cursor: 'pointer',
+                border: '1px solid var(--node-border)'
+              }}
+              title="Close Chat"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      </motion.div>
+
       {/* Control Panel */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
@@ -557,6 +772,9 @@ export default function Home() {
           }}
           defaultViewport={{ x: 0, y: 0, zoom: 0.8 }}
           proOptions={{ hideAttribution: true }}
+          nodesDraggable={!isChatOpen}
+          nodesConnectable={!isChatOpen}
+          elementsSelectable={!isChatOpen}
         >
         </ReactFlow>
       </div>

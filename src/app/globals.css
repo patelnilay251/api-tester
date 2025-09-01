@@ -353,3 +353,80 @@ body {
     stroke-dashoffset: -10;
   }
 }
+
+/* Prevent canvas reflow during chat transitions */
+.react-flow__viewport {
+  transition: none !important;
+}
+
+/* Ensure chat animations don't affect document flow */
+.chat-overlay {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  will-change: transform, opacity;
+}
+
+/* Smooth chat transitions */
+.chat-bar {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+/* Chat interaction fixes */
+.chat-overlay {
+  /* Prevent React Flow from capturing events */
+  touch-action: none;
+}
+
+.chat-bar * {
+  /* Ensure all interactive elements work properly */
+  pointer-events: auto;
+}
+
+.chat-bar button,
+.chat-bar select,
+.chat-bar input {
+  /* Proper cursor states */
+  cursor: pointer;
+}
+
+.chat-bar input {
+  cursor: text;
+}
+
+.chat-bar button:disabled {
+  cursor: not-allowed;
+}
+
+/* Prevent React Flow drag when interacting with chat */
+.chat-overlay:hover {
+  cursor: default;
+}
+
+/* Unified chat component styling */
+.chat-bar {
+  /* Seamless integration of all elements */
+  border: 1px solid var(--node-border);
+}
+
+.chat-bar select,
+.chat-bar input,
+.chat-bar button {
+  /* Consistent styling across all interactive elements */
+  transition: all 0.2s ease;
+  font-size: 0.875rem;
+}
+
+.chat-bar select:focus,
+.chat-bar input:focus {
+  /* Subtle focus states */
+  outline: none;
+  border-color: var(--button-primary-bg);
+  box-shadow: 0 0 0 2px rgba(31, 64, 237, 0.1);
+}
+
+.chat-bar button:hover {
+  /* Unified hover effects */
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
