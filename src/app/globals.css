@@ -1,53 +1,71 @@
 @import "tailwindcss";
 
 :root {
+  /* Color palette variables */
+  --color-blue: #1F40ED;
+  --color-black: #141414;
+  --color-beige: #F5F5F0;
+  --color-white: #FFFFFF;
+
   /* Light theme variables */
-  --background: #ffffff;
-  --foreground: #0a0a0a;
-  --glass: rgba(255, 255, 255, 0.85);
-  --glass-border: rgba(255, 255, 255, 0.2);
+  --background: var(--color-beige);
+  --foreground: var(--color-black);
+  --glass: rgba(230, 230, 230, 0.85);
+  --glass-border: rgba(255, 255, 255, 0.3);
   --accent: #f8f9fa;
-  --shadow: 0 8px 32px rgba(0, 0, 0, 0.06);
-  --shadow-lg: 0 20px 64px rgba(0, 0, 0, 0.12);
+  --shadow: 0 8px 32px rgba(20, 20, 20, 0.08);
+  --shadow-lg: 0 20px 64px rgba(20, 20, 20, 0.15);
 
   /* Canvas grid colors */
-  --grid-primary: rgba(0, 0, 0, 0.05);
-  --grid-secondary: rgba(0, 0, 0, 0.03);
-  --grid-accent: rgba(0, 0, 0, 0.08);
+  --grid-primary: rgba(20, 20, 20, 0.06);
+  --grid-secondary: rgba(20, 20, 20, 0.03);
+  --grid-accent: rgba(20, 20, 20, 0.1);
 
   /* Node colors */
   --node-bg: rgba(255, 255, 255, 0.95);
-  --node-border: rgba(255, 255, 255, 0.2);
-  --node-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-  --node-header-bg: rgba(255, 255, 255, 0.1);
-  --node-input-bg: rgba(0, 0, 0, 0.05);
-  --node-text: #0a0a0a;
-  --node-text-muted: rgba(0, 0, 0, 0.6);
+  --node-border: rgba(255, 255, 255, 0.4);
+  --node-shadow: 0 8px 32px rgba(20, 20, 20, 0.12);
+  --node-header-bg: rgba(255, 255, 255, 0.2);
+  --node-input-bg: rgba(255, 255, 255, 0.6);
+  --node-text: var(--color-black);
+  --node-text-muted: rgba(20, 20, 20, 0.65);
+
+  /* Button colors */
+  --button-primary-bg: var(--color-blue);
+  --button-primary-text: var(--color-black);
+  --button-secondary-bg: rgba(255, 255, 255, 0.7);
+  --button-secondary-text: var(--color-black);
 }
 
 .dark {
   /* Dark theme variables */
-  --background: #0a0a0a;
-  --foreground: #ffffff;
+  --background: var(--color-black);
+  --foreground: var(--color-white);
   --glass: rgba(20, 20, 20, 0.85);
-  --glass-border: rgba(255, 255, 255, 0.1);
+  --glass-border: rgba(255, 255, 255, 0.15);
   --accent: #1a1a1a;
-  --shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
-  --shadow-lg: 0 20px 64px rgba(0, 0, 0, 0.7);
+  --shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+  --shadow-lg: 0 20px 64px rgba(0, 0, 0, 0.8);
 
   /* Canvas grid colors */
-  --grid-primary: rgba(255, 255, 255, 0.05);
+  --grid-primary: rgba(255, 255, 255, 0.06);
   --grid-secondary: rgba(255, 255, 255, 0.03);
-  --grid-accent: rgba(255, 255, 255, 0.08);
+  --grid-accent: rgba(255, 255, 255, 0.1);
 
   /* Node colors */
   --node-bg: rgba(20, 20, 20, 0.95);
-  --node-border: rgba(255, 255, 255, 0.1);
-  --node-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-  --node-header-bg: rgba(255, 255, 255, 0.05);
-  --node-input-bg: rgba(255, 255, 255, 0.05);
-  --node-text: #ffffff;
-  --node-text-muted: rgba(255, 255, 255, 0.6);
+  --node-border: rgba(255, 255, 255, 0.15);
+  --node-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  --node-header-bg: rgba(255, 255, 255, 0.08);
+  --node-input-bg: rgba(255, 255, 255, 0.08);
+  --node-text: var(--color-white);
+  --node-text-muted: rgba(255, 255, 255, 0.65);
+
+  /* Button colors */
+  --button-primary-bg: var(--color-beige);
+  --button-primary-text: var(--color-black);
+  --button-secondary-bg: rgba(255, 255, 255, 0.1);
+  --button-secondary-text: var(--color-white);
 }
 
 @theme inline {
@@ -202,6 +220,36 @@ body {
   box-shadow: var(--shadow-lg);
   will-change: transform, opacity;
   transform: translateZ(0);
+}
+
+/* Enhanced glass effects for new color palette */
+.glass-themed {
+  background: var(--node-bg);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--node-border);
+  box-shadow: var(--node-shadow);
+  will-change: transform, opacity;
+  transform: translateZ(0);
+}
+
+.dark .glass-themed {
+  background: var(--node-bg);
+  border: 1px solid var(--node-border);
+  box-shadow: var(--node-shadow);
+}
+
+/* Button glass effects */
+.button-glass {
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.button-glass:hover {
+  backdrop-filter: blur(15px);
+  -webkit-backdrop-filter: blur(15px);
+  transform: translateY(-1px);
 }
 
 /* High performance hover states */

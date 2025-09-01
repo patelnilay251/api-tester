@@ -328,13 +328,14 @@ export default function Home() {
             <div
               className="w-8 h-8 rounded-xl flex items-center justify-center"
               style={{
-                backgroundColor: theme === 'dark' ? 'white' : 'black'
+                backgroundColor: 'var(--button-primary-bg)',
+                color: 'var(--button-primary-text)'
               }}
             >
               <Zap
                 className="w-4 h-4"
                 style={{
-                  color: theme === 'dark' ? 'black' : 'white'
+                  color: 'var(--button-primary-text)'
                 }}
               />
             </div>
@@ -349,8 +350,9 @@ export default function Home() {
           <div className="flex items-center gap-2">
             <button
               onClick={toggleTheme}
-              className="flex items-center gap-2 px-3 py-2 rounded-xl transition-colors hover:bg-black/5 dark:hover:bg-white/5"
+              className="flex items-center gap-2 px-3 py-2 rounded-xl transition-all hover:bg-black/5 dark:hover:bg-white/5"
               style={{ color: 'var(--node-text)' }}
+              title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
             >
               {theme === 'dark' ? (
                 <Sun className="w-4 h-4" />
@@ -360,10 +362,10 @@ export default function Home() {
             </button>
             <button
               onClick={handleAddNewApiNode}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl transition-colors"
+              className="flex items-center gap-2 px-4 py-2 rounded-xl button-glass"
               style={{
-                backgroundColor: theme === 'dark' ? 'white' : 'black',
-                color: theme === 'dark' ? 'black' : 'white'
+                backgroundColor: 'var(--button-primary-bg)',
+                color: 'var(--button-primary-text)'
               }}
             >
               <Plus className="w-4 h-4" />
@@ -371,10 +373,10 @@ export default function Home() {
             </button>
             <button
               onClick={handleReset}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl transition-colors"
+              className="flex items-center gap-2 px-4 py-2 rounded-xl button-glass"
               style={{
-                backgroundColor: 'var(--node-input-bg)',
-                color: 'var(--node-text)',
+                backgroundColor: 'var(--button-secondary-bg)',
+                color: 'var(--button-secondary-text)',
                 border: '1px solid var(--node-border)'
               }}
             >

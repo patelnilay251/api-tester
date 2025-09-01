@@ -146,7 +146,7 @@ const ApiRequestNode = memo(({ id, data, selected }: ApiRequestNodeProps) => {
         <motion.div
             initial={{ scale: 0.8, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            className={`group relative ${isExpanded ? 'w-96' : 'w-80'} node-themed backdrop-blur-xl rounded-3xl ${selected ? 'ring-2' : ''}`}
+            className={`group relative ${isExpanded ? 'w-96' : 'w-80'} glass-themed rounded-3xl ${selected ? 'ring-2' : ''}`}
             style={{
                 background: 'var(--node-bg)',
                 borderColor: 'var(--node-border)',
@@ -344,15 +344,22 @@ const ApiRequestNode = memo(({ id, data, selected }: ApiRequestNodeProps) => {
                     <button
                         type="submit"
                         disabled={loading || !request.url}
-                        className="w-full py-2 px-3 rounded-lg text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                        className="w-full py-2 px-3 rounded-lg text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 button-glass"
                         style={{
-                            backgroundColor: theme === 'dark' ? 'white' : 'black',
-                            color: theme === 'dark' ? 'black' : 'white'
+                            backgroundColor: 'var(--button-primary-bg)',
+                            color: 'var(--button-primary-text)'
                         }}
                     >
                         {loading ? (
                             <>
-                                <div className="w-3 h-3 border border-white/30 border-t-white rounded-full animate-spin" />
+                                <div
+                                    className="w-3 h-3 rounded-full animate-spin"
+                                    style={{
+                                        border: '2px solid',
+                                        borderColor: 'var(--button-primary-text)',
+                                        borderTopColor: 'transparent'
+                                    }}
+                                />
                                 Sending...
                             </>
                         ) : (

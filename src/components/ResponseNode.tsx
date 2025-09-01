@@ -101,7 +101,7 @@ const ResponseNode = memo(({ id, data, selected }: ResponseNodeProps) => {
         <motion.div
             initial={{ scale: 0.8, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            className={`group w-72 node-themed backdrop-blur-xl rounded-3xl ${selected ? 'ring-2' : ''}`}
+            className={`group w-72 glass-themed rounded-3xl ${selected ? 'ring-2' : ''}`}
             style={{
                 background: 'var(--node-bg)',
                 borderColor: 'var(--node-border)',
