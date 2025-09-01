@@ -316,79 +316,58 @@ export default function Home() {
 
   return (
     <div className="h-screen w-screen canvas-background">
-      {/* Header */}
+      {/* Control Panel */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="absolute top-0 left-0 right-0 z-50 glass backdrop-blur-xl border-b"
-        style={{ borderColor: 'var(--node-border)' }}
+        className="absolute top-6 right-6 z-50 glass-themed rounded-2xl"
+        style={{
+          background: 'var(--node-bg)',
+          borderColor: 'var(--node-border)',
+          boxShadow: 'var(--node-shadow)'
+        }}
       >
-        <div className="flex items-center justify-between px-6 py-4">
-          <div className="flex items-center gap-3">
-            <div
-              className="w-8 h-8 rounded-xl flex items-center justify-center"
-              style={{
-                backgroundColor: 'var(--button-primary-bg)',
-                color: 'var(--button-primary-text)'
-              }}
-            >
-              <Zap
-                className="w-4 h-4"
-                style={{
-                  color: 'var(--button-primary-text)'
-                }}
-              />
-            </div>
-            <h1
-              className="text-xl font-playfair font-light"
-              style={{ color: 'var(--node-text)' }}
-            >
-              API Flow Tester
-            </h1>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              onClick={toggleTheme}
-              className="flex items-center gap-2 px-3 py-2 rounded-xl transition-all hover:bg-black/5 dark:hover:bg-white/5"
-              style={{ color: 'var(--node-text)' }}
-              title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
-            >
-              {theme === 'dark' ? (
-                <Sun className="w-4 h-4" />
-              ) : (
-                <Moon className="w-4 h-4" />
-              )}
-            </button>
-            <button
-              onClick={handleAddNewApiNode}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl button-glass"
-              style={{
-                backgroundColor: 'var(--button-primary-bg)',
-                color: 'var(--button-primary-text)'
-              }}
-            >
-              <Plus className="w-4 h-4" />
-              Add API Node
-            </button>
-            <button
-              onClick={handleReset}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl button-glass"
-              style={{
-                backgroundColor: 'var(--button-secondary-bg)',
-                color: 'var(--button-secondary-text)',
-                border: '1px solid var(--node-border)'
-              }}
-            >
-              <RotateCcw className="w-4 h-4" />
-              Reset
-            </button>
-          </div>
+        <div className="flex items-center gap-2 px-4 py-3">
+          <button
+            onClick={toggleTheme}
+            className="flex items-center justify-center w-9 h-9 rounded-xl transition-all hover:bg-black/5 dark:hover:bg-white/5"
+            style={{ color: 'var(--node-text)' }}
+            title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+          >
+            {theme === 'dark' ? (
+              <Sun className="w-4 h-4" />
+            ) : (
+              <Moon className="w-4 h-4" />
+            )}
+          </button>
+          <button
+            onClick={handleAddNewApiNode}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl button-glass"
+            style={{
+              backgroundColor: 'var(--button-primary-bg)',
+              color: 'var(--button-primary-text)'
+            }}
+          >
+            <Plus className="w-4 h-4" />
+            Add API Node
+          </button>
+          <button
+            onClick={handleReset}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl button-glass"
+            style={{
+              backgroundColor: 'var(--button-secondary-bg)',
+              color: 'var(--button-secondary-text)',
+              border: '1px solid var(--node-border)'
+            }}
+          >
+            <RotateCcw className="w-4 h-4" />
+            Reset
+          </button>
         </div>
       </motion.div>
 
       {/* React Flow Canvas */}
-      <div className="h-full pt-16">
+      <div className="h-full">
         <ReactFlow
           nodes={nodes}
           edges={edges}

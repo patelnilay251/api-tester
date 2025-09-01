@@ -4,10 +4,12 @@
   /* Color palette variables */
   --color-blue: #1F40ED;
   --color-black: #141414;
-  --color-beige: #F5F5F0;
+  /* Beige color definition - warm creamy off-white (#F5F5F0) */
+  --color-beige: #FFF;
   --color-white: #FFFFFF;
 
   /* Light theme variables */
+  /* Beige canvas background for light mode */
   --background: var(--color-beige);
   --foreground: var(--color-black);
   --glass: rgba(230, 230, 230, 0.85);
@@ -32,7 +34,8 @@
 
   /* Button colors */
   --button-primary-bg: var(--color-blue);
-  --button-primary-text: var(--color-black);
+  /* Beige text color for blue buttons in light mode */
+  --button-primary-text: var(--color-beige);
   --button-secondary-bg: rgba(255, 255, 255, 0.7);
   --button-secondary-text: var(--color-black);
 }
@@ -62,6 +65,7 @@
   --node-text-muted: rgba(255, 255, 255, 0.65);
 
   /* Button colors */
+  /* Beige button background for dark mode */
   --button-primary-bg: var(--color-beige);
   --button-primary-text: var(--color-black);
   --button-secondary-bg: rgba(255, 255, 255, 0.1);
