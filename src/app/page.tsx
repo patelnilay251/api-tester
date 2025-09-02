@@ -2,43 +2,23 @@
 
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
-import {
-  ReactFlow,
-  useNodesState,
-  useEdgesState,
-  addEdge,
-  Connection,
-  Edge,
-  Node
-} from '@xyflow/react';
-import { Plus, Zap, RotateCcw, Moon, Sun, Menu, X, Settings, Info, Github, Coffee, MessageSquare, Send, ChevronDown } from 'lucide-react';
+import { ReactFlow, useNodesState, useEdgesState, addEdge, Connection, Edge, Node } from '@xyflow/react';
+import { Plus, RotateCcw, Moon, Sun, Menu, X, Settings, Info, Github, Coffee, MessageSquare, Send, ChevronDown, Clock } from 'lucide-react';
 
 import ApiRequestNode from '@/components/ApiRequestNode';
 import ResponseNode from '@/components/ResponseNode';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useEnv } from '@/contexts/EnvContext';
+import { useHistoryLog } from '@/contexts/HistoryContext';
+import { RequestData, ResponseData } from '@/types';
 
 import '@xyflow/react/dist/style.css';
-
-interface RequestData {
-  url: string;
-  method: string;
-  headers: string;
-  data: string;
-}
-
-interface ResponseData {
-  status: number;
-  statusText: string;
-  headers: Record<string, string>;
-  data: any;
-  responseTime: number;
-  url: string;
-}
 
 interface ApiRequestNodeData extends Record<string, unknown> {
   label: string;
   name?: string;
-  onRequestSent: (nodeId: string, requestData: RequestData, response: ResponseData) => void;
+  initialRequest?: RequestData;
+  onRequestSent: (nodeId: string, requestData: RequestData, response: ResponseData, meta?: { assertions?: any[]; results?: any[] }) => void;
   onDelete: (nodeId: string) => void;
   onNameChange?: (nodeId: string, newName: string) => void;
 }
@@ -46,6 +26,8 @@ interface ApiRequestNodeData extends Record<string, unknown> {
 interface ResponseNodeData extends Record<string, unknown> {
   response: ResponseData;
   requestData: RequestData;
+  assertions?: any[];
+  assertionResults?: any[];
   name?: string;
   onDelete?: (nodeId: string) => void;
   onNameChange?: (nodeId: string, newName: string) => void;
@@ -60,6 +42,8 @@ const nodeTypes = {
 
 export default function Home() {
   const { theme, toggleTheme } = useTheme();
+  const env = useEnv();
+  const historyLog = useHistoryLog();
   const [nodes, setNodes, onNodesChange] = useNodesState<AppNode>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [nodeId, setNodeId] = useState(0);
@@ -70,6 +54,8 @@ export default function Home() {
   const [selectedModel, setSelectedModel] = useState('gpt-4');
   const chatInputRef = useRef<HTMLInputElement>(null);
   const [isInteractingWithChat, setIsInteractingWithChat] = useState(false);
+  const [isEnvOpen, setIsEnvOpen] = useState(false);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
 
 
   const handleNameChange = useCallback((nodeId: string, newName: string) => {
@@ -145,7 +131,7 @@ export default function Home() {
     });
   }, [setNodes, setEdges]);
 
-  const handleRequestSent = useCallback((nodeId: string, requestData: RequestData, response: ResponseData) => {
+  const handleRequestSent = useCallback((nodeId: string, requestData: RequestData, response: ResponseData, meta?: { assertions?: any[]; results?: any[] }) => {
     console.log('handleRequestSent called:', { nodeId, requestData, response });
 
     const responseNodeId = `response-${Date.now()}`;
@@ -168,6 +154,8 @@ export default function Home() {
         data: {
           response,
           requestData,
+          assertions: meta?.assertions || [],
+          assertionResults: meta?.results || [],
           name: nodeNames[responseNodeId] || `Response ${response.status}`,
           onDelete: handleDeleteSingleNode,
           onNameChange: handleNameChange,
@@ -314,6 +302,28 @@ export default function Home() {
     setNodeId(nodeId + 1);
   }, [nodeId, handleRequestSent, handleDeleteNode, handleNameChange, nodeNames, setNodes]);
 
+  const handleAddNodeFromRequestData = useCallback((initialRequest: RequestData) => {
+    const newId = `api-${nodeId + 1}`;
+    const newNode: AppNode = {
+      id: newId,
+      type: 'apiRequest',
+      position: {
+        x: Math.random() * 500 + 100,
+        y: Math.random() * 300 + 100,
+      },
+      data: {
+        label: 'API Request',
+        name: nodeNames[newId] || 'API Request',
+        initialRequest,
+        onRequestSent: handleRequestSent,
+        onDelete: handleDeleteNode,
+        onNameChange: handleNameChange,
+      },
+    };
+    setNodes((nds) => [...nds, newNode]);
+    setNodeId(nodeId + 1);
+  }, [nodeId, nodeNames, handleRequestSent, handleDeleteNode, handleNameChange, setNodes]);
+
   const handleReset = useCallback(() => {
     setNodes(initialNodes);
     setEdges([]);
@@ -448,10 +458,10 @@ export default function Home() {
                 whileTap={{ scale: 0.98 }}
                 className="w-full flex items-center gap-3 px-3 py-2.5 text-sm rounded-xl transition-all hover:bg-black/5 dark:hover:bg-white/5"
                 style={{ color: 'var(--node-text)' }}
-                onClick={closeMenu}
+                onClick={() => setIsEnvOpen((v) => !v)}
               >
                 <Settings className="w-4 h-4" style={{ color: 'var(--node-text-muted)' }} />
-                Settings
+                Environment
               </motion.button>
 
               <motion.button
@@ -492,6 +502,76 @@ export default function Home() {
                 Support Us
               </motion.button>
             </div>
+
+            {/* Environment Editor */}
+            {isEnvOpen && (
+              <div className="mt-2 p-3 rounded-xl" style={{ background: 'var(--node-header-bg)', border: '1px solid var(--node-border)' }}>
+                <div className="space-y-2">
+                  <div>
+                    <label className="block text-xs mb-1" style={{ color: 'var(--node-text-muted)' }}>{'Base URL ({{baseUrl}})'}</label>
+                    <input
+                      type="text"
+                      value={env.baseUrl}
+                      onChange={(e) => env.setBaseUrl(e.target.value)}
+                      className="w-full px-2 py-1.5 text-xs rounded-lg border-0 focus:ring-1 node-input"
+                      style={{ backgroundColor: 'var(--node-input-bg)', color: 'var(--node-text)', borderColor: 'var(--node-border)' }}
+                      placeholder="https://api.example.com"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs mb-1" style={{ color: 'var(--node-text-muted)' }}>{'Token ({{token}})'}</label>
+                    <input
+                      type="text"
+                      value={env.token}
+                      onChange={(e) => env.setToken(e.target.value)}
+                      className="w-full px-2 py-1.5 text-xs rounded-lg border-0 focus:ring-1 node-input"
+                      style={{ backgroundColor: 'var(--node-input-bg)', color: 'var(--node-text)', borderColor: 'var(--node-border)' }}
+                      placeholder="your-token"
+                    />
+                  </div>
+                  {/* Custom Vars - minimal (list + add) */}
+                  <div>
+                    <label className="block text-xs mb-1" style={{ color: 'var(--node-text-muted)' }}>Custom Variables</label>
+                    <div className="space-y-1">
+                      {Object.entries(env.vars).map(([k, v]) => (
+                        <div key={k} className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            value={k}
+                            onChange={(e) => {
+                              const newKey = e.target.value;
+                              if (!newKey) return;
+                              const val = env.vars[k];
+                              env.removeVar(k);
+                              env.setVar(newKey, val);
+                            }}
+                            className="w-1/3 px-2 py-1.5 text-xs rounded-lg border-0 focus:ring-1 node-input"
+                            style={{ backgroundColor: 'var(--node-input-bg)', color: 'var(--node-text)', borderColor: 'var(--node-border)' }}
+                          />
+                          <input
+                            type="text"
+                            value={v}
+                            onChange={(e) => env.setVar(k, e.target.value)}
+                            className="flex-1 px-2 py-1.5 text-xs rounded-lg border-0 focus:ring-1 node-input"
+                            style={{ backgroundColor: 'var(--node-input-bg)', color: 'var(--node-text)', borderColor: 'var(--node-border)' }}
+                          />
+                          <button onClick={() => env.removeVar(k)} className="px-2 py-1 rounded-lg hover:bg-black/5 dark:hover:bg-white/5" title="Remove">
+                            <X className="w-3 h-3" style={{ color: 'var(--node-text-muted)' }} />
+                          </button>
+                        </div>
+                      ))}
+                      <button
+                        onClick={() => env.setVar(`var${Object.keys(env.vars).length + 1}`, '')}
+                        className="px-2 py-1.5 text-xs rounded-lg button-glass"
+                        style={{ backgroundColor: 'var(--button-secondary-bg)', color: 'var(--button-secondary-text)', border: '1px solid var(--node-border)' }}
+                      >
+                        + Add Variable
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Theme Toggle in Menu */}
             <div className="mt-4 pt-3 border-t" style={{ borderColor: 'var(--node-border)' }}>
@@ -732,6 +812,15 @@ export default function Home() {
             )}
           </button>
           <button
+            onClick={() => setIsHistoryOpen((v) => !v)}
+            className="flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-black/5 dark:hover:bg-white/5"
+            style={{ color: 'var(--node-text)' }}
+            title="Recent Requests"
+          >
+            <Clock className="w-4 h-4" />
+            History
+          </button>
+          <button
             onClick={handleAddNewApiNode}
             className="flex items-center gap-2 px-4 py-2 rounded-xl button-glass"
             style={{
@@ -778,6 +867,62 @@ export default function Home() {
         >
         </ReactFlow>
       </div>
+
+      {/* History Panel */}
+      {isHistoryOpen && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          className="absolute top-20 right-6 z-50 w-96 glass-themed rounded-2xl"
+          style={{ background: 'var(--node-bg)', borderColor: 'var(--node-border)', boxShadow: 'var(--node-shadow)' }}
+        >
+          <div className="p-4">
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-sm font-semibold" style={{ color: 'var(--node-text)' }}>Recent Requests</div>
+              <button onClick={() => historyLog.clear()} className="text-xs px-2 py-1 rounded-lg hover:bg-black/5 dark:hover:bg-white/5" style={{ color: 'var(--node-text-muted)' }}>Clear</button>
+            </div>
+            <div className="space-y-2 max-h-80 overflow-y-auto">
+              {historyLog.items.length === 0 && (
+                <div className="text-xs" style={{ color: 'var(--node-text-muted)' }}>No history yet</div>
+              )}
+              {historyLog.items.map((it) => (
+                <div key={it.id} className="flex items-center justify-between px-2 py-2 rounded-xl" style={{ background: 'var(--node-header-bg)', border: '1px solid var(--node-border)' }}>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--node-text)' }}>
+                      <span className="font-mono">{it.method}</span>
+                      <span className="truncate" title={it.url} style={{ color: 'var(--node-text-muted)' }}>
+                        {(() => { try { return new URL(it.url).pathname; } catch { return it.url; } })()}
+                      </span>
+                    </div>
+                    <div className="text-[10px]" style={{ color: 'var(--node-text-muted)' }}>
+                      {it.status ?? '-'} • {it.responseTime ?? '-'}ms
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button
+                      className="px-2 py-1 text-xs rounded-lg button-glass"
+                      style={{ backgroundColor: 'var(--button-secondary-bg)', color: 'var(--button-secondary-text)', border: '1px solid var(--node-border)' }}
+                      onClick={() => handleAddNodeFromRequestData({
+                        url: it.request.url,
+                        method: it.request.method,
+                        headers: JSON.stringify(it.request.headers, null, 2),
+                        data: typeof it.request.data === 'string' ? it.request.data : JSON.stringify(it.request.data, null, 2),
+                        queryParams: it.request.queryParams || [],
+                        useBearer: !!it.request.usedBearer,
+                        bearerToken: '',
+                        assertions: [],
+                      })}
+                    >
+                      Add Node
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </motion.div>
+      )}
     </div>
   );
 }

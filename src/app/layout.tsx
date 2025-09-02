@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Inter, JetBrains_Mono, Playfair_Display } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/contexts/ThemeContext";
+import { EnvironmentProvider } from "@/contexts/EnvContext";
+import { HistoryProvider } from "@/contexts/HistoryContext";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -37,7 +39,11 @@ export default function RootLayout({
         className={`${inter.variable} ${jetbrainsMono.variable} ${playfair.variable} antialiased font-inter`}
       >
         <ThemeProvider>
-          {children}
+          <EnvironmentProvider>
+            <HistoryProvider>
+              {children}
+            </HistoryProvider>
+          </EnvironmentProvider>
         </ThemeProvider>
       </body>
     </html>

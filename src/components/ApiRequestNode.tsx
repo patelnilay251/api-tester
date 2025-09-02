@@ -1,13 +1,15 @@
 'use client';
 
-import { useState, useCallback, memo } from 'react';
+import { useState, useCallback, memo, useEffect } from 'react';
 import { Handle, Position, useReactFlow } from '@xyflow/react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useEnv } from '@/contexts/EnvContext';
+import { useHistoryLog } from '@/contexts/HistoryContext';
+import { Assertion, RequestData } from '@/types';
 import {
     Send,
     Globe,
-    Settings,
     Code,
     X,
     Plus,
@@ -17,19 +19,18 @@ import {
     Check
 } from 'lucide-react';
 
-interface RequestData {
-    url: string;
-    method: string;
-    headers: string;
-    data: string;
-}
-
 interface ApiRequestNodeProps {
     id: string;
     data: {
         label: string;
         name?: string;
-        onRequestSent: (nodeId: string, requestData: RequestData, response: any) => void;
+        initialRequest?: RequestData;
+        onRequestSent: (
+            nodeId: string,
+            requestData: RequestData,
+            response: any,
+            meta?: { assertions?: Assertion[]; results?: { id: string; passed: boolean; description: string }[] }
+        ) => void;
         onDelete: (nodeId: string) => void;
         onNameChange?: (nodeId: string, newName: string) => void;
     };
@@ -38,11 +39,17 @@ interface ApiRequestNodeProps {
 
 const ApiRequestNode = memo(({ id, data, selected }: ApiRequestNodeProps) => {
     const { theme } = useTheme();
+    const { resolveString, resolveDeep, token: envToken, baseUrl: envBaseUrl } = useEnv();
+    const history = useHistoryLog();
     const [request, setRequest] = useState<RequestData>({
         url: '',
         method: 'GET',
         headers: '',
-        data: ''
+        data: '',
+        queryParams: [],
+        useBearer: false,
+        bearerToken: '',
+        assertions: [],
     });
 
     const [loading, setLoading] = useState(false);
@@ -50,6 +57,16 @@ const ApiRequestNode = memo(({ id, data, selected }: ApiRequestNodeProps) => {
     const [isEditingName, setIsEditingName] = useState(false);
     const [currentName, setCurrentName] = useState(data.name || 'API Request');
     const { fitView } = useReactFlow();
+
+    useEffect(() => {
+        if (data.initialRequest) {
+            setRequest((prev) => ({
+                ...prev,
+                ...data.initialRequest,
+            }));
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     const handleSubmit = useCallback(async (e: React.FormEvent) => {
         e.preventDefault();
@@ -84,6 +101,32 @@ const ApiRequestNode = memo(({ id, data, selected }: ApiRequestNodeProps) => {
                     parsedData = request.data;
                 }
             }
+            // Build URL with env substitution and query params
+            let resolvedUrl = resolveString(request.url);
+            if (resolvedUrl.startsWith('/')) {
+                const base = envBaseUrl ? envBaseUrl.replace(/\/$/, '') : '';
+                resolvedUrl = `${base}${resolvedUrl}`;
+            }
+            try {
+                // if user placed {{baseUrl}} in URL, it's already resolved above
+                const u = new URL(resolvedUrl);
+                // apply query params
+                (request.queryParams || []).forEach(({ key, value }) => {
+                    if (key) u.searchParams.set(resolveString(key), resolveString(value));
+                });
+                resolvedUrl = u.toString();
+            } catch {}
+
+            // Bearer token header (unless explicitly set)
+            const useBearer = request.useBearer;
+            const bearerToken = request.bearerToken?.trim() || envToken || '';
+            if (useBearer && bearerToken && !(parsedHeaders as any)['Authorization']) {
+                (parsedHeaders as any)['Authorization'] = `Bearer ${resolveString(bearerToken)}`;
+            }
+
+            // Resolve env placeholders inside headers and data
+            parsedHeaders = resolveDeep(parsedHeaders);
+            parsedData = resolveDeep(parsedData);
 
             const res = await fetch('/api/test', {
                 method: 'POST',
@@ -91,7 +134,7 @@ const ApiRequestNode = memo(({ id, data, selected }: ApiRequestNodeProps) => {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    url: request.url,
+                    url: resolvedUrl,
                     method: request.method,
                     headers: parsedHeaders,
                     data: parsedData,
@@ -101,18 +144,77 @@ const ApiRequestNode = memo(({ id, data, selected }: ApiRequestNodeProps) => {
             const result = await res.json();
 
             if (res.ok) {
-                console.log('ApiRequestNode: Calling onRequestSent', { id, request, result });
-                console.log('onRequestSent function:', data.onRequestSent);
-                data.onRequestSent(id, request, result);
+                // Basic response validation
+                const assertions = request.assertions || [];
+                const results = assertions.map((a) => {
+                    try {
+                        if (a.type === 'status') {
+                            const passed = Number(result.status) === Number(a.equals);
+                            return { id: a.id, passed, description: `Status equals ${a.equals}` };
+                        }
+                        if (a.type === 'bodyContains') {
+                            const bodyStr = typeof result.data === 'string' ? result.data : JSON.stringify(result.data);
+                            const passed = bodyStr.includes(a.text);
+                            return { id: a.id, passed, description: `Body contains "${a.text}"` };
+                        }
+                        if (a.type === 'headerContains') {
+                            const hv = (result.headers || {})[a.header.toLowerCase()] || (result.headers || {})[a.header];
+                            const hvStr = hv != null ? String(hv) : '';
+                            const passed = hvStr.includes(a.text);
+                            return { id: a.id, passed, description: `Header ${a.header} contains "${a.text}"` };
+                        }
+                        return { id: 'unknown', passed: false, description: 'Unknown assertion' };
+                    } catch {
+                        return { id: 'unknown', passed: false, description: 'Assertion error' };
+                    }
+                });
+
+                // Log to history
+                history.add({
+                    id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+                    timestamp: Date.now(),
+                    method: request.method,
+                    url: result.url || resolvedUrl,
+                    status: result.status,
+                    responseTime: result.responseTime,
+                    success: true,
+                    request: {
+                        url: resolvedUrl,
+                        method: request.method,
+                        headers: (parsedHeaders as any) || {},
+                        data: parsedData,
+                        queryParams: request.queryParams,
+                        usedBearer: useBearer,
+                    },
+                });
+
+                data.onRequestSent(id, request, result, { assertions, results });
             } else {
                 console.error('Request failed with status:', res.status, result);
+                history.add({
+                    id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+                    timestamp: Date.now(),
+                    method: request.method,
+                    url: resolvedUrl,
+                    status: result?.status ?? res.status,
+                    responseTime: result?.responseTime,
+                    success: false,
+                    request: {
+                        url: resolvedUrl,
+                        method: request.method,
+                        headers: (parsedHeaders as any) || {},
+                        data: parsedData,
+                        queryParams: request.queryParams,
+                        usedBearer: useBearer,
+                    },
+                });
             }
         } catch (err) {
             console.error('Request failed:', err);
         } finally {
             setLoading(false);
         }
-    }, [request, id, data]);
+    }, [request, id, data, resolveString, resolveDeep, envBaseUrl, envToken, history]);
 
     const handleFocus = useCallback(() => {
         fitView({ nodes: [{ id }], duration: 800 });
@@ -291,6 +393,66 @@ const ApiRequestNode = memo(({ id, data, selected }: ApiRequestNodeProps) => {
                                 exit={{ height: 0, opacity: 0 }}
                                 className="space-y-3"
                             >
+                                {/* Query Params */}
+                                <div>
+                                    <label
+                                        className="block text-xs font-medium mb-1"
+                                        style={{ color: 'var(--node-text-muted)' }}
+                                    >
+                                        Query Parameters
+                                    </label>
+                                    <div className="space-y-2">
+                                        {(request.queryParams || []).map((qp, idx) => (
+                                            <div key={idx} className="flex gap-2">
+                                                <input
+                                                    type="text"
+                                                    placeholder="key"
+                                                    value={qp.key}
+                                                    onChange={(e) => {
+                                                        const arr = [...(request.queryParams || [])];
+                                                        arr[idx] = { ...arr[idx], key: e.target.value };
+                                                        setRequest({ ...request, queryParams: arr });
+                                                    }}
+                                                    className="w-1/2 px-2 py-1.5 text-xs rounded-lg border-0 focus:ring-1 node-input"
+                                                    style={{ backgroundColor: 'var(--node-input-bg)', color: 'var(--node-text)', borderColor: 'var(--node-border)' }}
+                                                />
+                                                <input
+                                                    type="text"
+                                                    placeholder="value"
+                                                    value={qp.value}
+                                                    onChange={(e) => {
+                                                        const arr = [...(request.queryParams || [])];
+                                                        arr[idx] = { ...arr[idx], value: e.target.value };
+                                                        setRequest({ ...request, queryParams: arr });
+                                                    }}
+                                                    className="w-1/2 px-2 py-1.5 text-xs rounded-lg border-0 focus:ring-1 node-input"
+                                                    style={{ backgroundColor: 'var(--node-input-bg)', color: 'var(--node-text)', borderColor: 'var(--node-border)' }}
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        const arr = [...(request.queryParams || [])];
+                                                        arr.splice(idx, 1);
+                                                        setRequest({ ...request, queryParams: arr });
+                                                    }}
+                                                    className="px-2 rounded-lg hover:bg-black/5 dark:hover:bg-white/5"
+                                                    title="Remove"
+                                                >
+                                                    <X className="w-3 h-3" style={{ color: 'var(--node-text-muted)' }} />
+                                                </button>
+                                            </div>
+                                        ))}
+                                        <button
+                                            type="button"
+                                            onClick={() => setRequest({ ...request, queryParams: [...(request.queryParams || []), { key: '', value: '' }] })}
+                                            className="px-2 py-1.5 text-xs rounded-lg button-glass"
+                                            style={{ backgroundColor: 'var(--button-secondary-bg)', color: 'var(--button-secondary-text)', border: '1px solid var(--node-border)' }}
+                                        >
+                                            + Add Param
+                                        </button>
+                                    </div>
+                                </div>
+
                                 {/* Headers */}
                                 <div>
                                     <label
@@ -310,6 +472,26 @@ const ApiRequestNode = memo(({ id, data, selected }: ApiRequestNodeProps) => {
                                             color: 'var(--node-text)',
                                             borderColor: 'var(--node-border)'
                                         }}
+                                    />
+                                </div>
+
+                                {/* Bearer Token */}
+                                <div className="flex items-center gap-2">
+                                    <label className="flex items-center gap-2 text-xs" style={{ color: 'var(--node-text-muted)' }}>
+                                        <input
+                                            type="checkbox"
+                                            checked={!!request.useBearer}
+                                            onChange={(e) => setRequest({ ...request, useBearer: e.target.checked })}
+                                        />
+                                        Use Bearer Token
+                                    </label>
+                                    <input
+                                        type="text"
+                                        placeholder={envToken ? 'Using {{token}}' : 'Enter token or use {{token}}'}
+                                        value={request.bearerToken ?? ''}
+                                        onChange={(e) => setRequest({ ...request, bearerToken: e.target.value })}
+                                        className="flex-1 px-2 py-1.5 text-xs rounded-lg border-0 focus:ring-1 node-input"
+                                        style={{ backgroundColor: 'var(--node-input-bg)', color: 'var(--node-text)', borderColor: 'var(--node-border)' }}
                                     />
                                 </div>
 
@@ -336,6 +518,117 @@ const ApiRequestNode = memo(({ id, data, selected }: ApiRequestNodeProps) => {
                                         />
                                     </div>
                                 )}
+
+                                {/* Assertions */}
+                                <div>
+                                    <label className="block text-xs font-medium mb-1" style={{ color: 'var(--node-text-muted)' }}>
+                                        Assertions
+                                    </label>
+                                    <div className="space-y-2">
+                                        {(request.assertions || []).map((a, idx) => (
+                                            <div key={a.id} className="flex items-center gap-2">
+                                                <select
+                                                    value={a.type}
+                                                    onChange={(e) => {
+                                                        const type = e.target.value as Assertion['type'];
+                                                        const arr = [...(request.assertions || [])];
+                                                        let next: Assertion;
+                                                        if (type === 'status') next = { id: a.id, type: 'status', equals: 200 };
+                                                        else if (type === 'bodyContains') next = { id: a.id, type: 'bodyContains', text: '' };
+                                                        else next = { id: a.id, type: 'headerContains', header: '', text: '' };
+                                                        arr[idx] = next;
+                                                        setRequest({ ...request, assertions: arr });
+                                                    }}
+                                                    className="px-2 py-1.5 text-xs rounded-lg border-0 focus:ring-1 node-input"
+                                                    style={{ backgroundColor: 'var(--node-input-bg)', color: 'var(--node-text)', borderColor: 'var(--node-border)' }}
+                                                >
+                                                    <option value="status">Status equals</option>
+                                                    <option value="bodyContains">Body contains</option>
+                                                    <option value="headerContains">Header contains</option>
+                                                </select>
+
+                                                {a.type === 'status' && (
+                                                    <input
+                                                        type="number"
+                                                        value={a.equals}
+                                                        onChange={(e) => {
+                                                            const arr = [...(request.assertions || [])] as any;
+                                                            arr[idx] = { ...a, equals: Number(e.target.value) };
+                                                            setRequest({ ...request, assertions: arr });
+                                                        }}
+                                                        className="w-24 px-2 py-1.5 text-xs rounded-lg border-0 focus:ring-1 node-input"
+                                                        style={{ backgroundColor: 'var(--node-input-bg)', color: 'var(--node-text)', borderColor: 'var(--node-border)' }}
+                                                    />
+                                                )}
+
+                                                {a.type === 'bodyContains' && (
+                                                    <input
+                                                        type="text"
+                                                        placeholder="text"
+                                                        value={a.text}
+                                                        onChange={(e) => {
+                                                            const arr = [...(request.assertions || [])] as any;
+                                                            arr[idx] = { ...a, text: e.target.value };
+                                                            setRequest({ ...request, assertions: arr });
+                                                        }}
+                                                        className="flex-1 px-2 py-1.5 text-xs rounded-lg border-0 focus:ring-1 node-input"
+                                                        style={{ backgroundColor: 'var(--node-input-bg)', color: 'var(--node-text)', borderColor: 'var(--node-border)' }}
+                                                    />
+                                                )}
+
+                                                {a.type === 'headerContains' && (
+                                                    <>
+                                                        <input
+                                                            type="text"
+                                                            placeholder="header"
+                                                            value={a.header}
+                                                            onChange={(e) => {
+                                                                const arr = [...(request.assertions || [])] as any;
+                                                                arr[idx] = { ...a, header: e.target.value };
+                                                                setRequest({ ...request, assertions: arr });
+                                                            }}
+                                                            className="w-32 px-2 py-1.5 text-xs rounded-lg border-0 focus:ring-1 node-input"
+                                                            style={{ backgroundColor: 'var(--node-input-bg)', color: 'var(--node-text)', borderColor: 'var(--node-border)' }}
+                                                        />
+                                                        <input
+                                                            type="text"
+                                                            placeholder="contains"
+                                                            value={a.text}
+                                                            onChange={(e) => {
+                                                                const arr = [...(request.assertions || [])] as any;
+                                                                arr[idx] = { ...a, text: e.target.value };
+                                                                setRequest({ ...request, assertions: arr });
+                                                            }}
+                                                            className="flex-1 px-2 py-1.5 text-xs rounded-lg border-0 focus:ring-1 node-input"
+                                                            style={{ backgroundColor: 'var(--node-input-bg)', color: 'var(--node-text)', borderColor: 'var(--node-border)' }}
+                                                        />
+                                                    </>
+                                                )}
+
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        const arr = [...(request.assertions || [])];
+                                                        arr.splice(idx, 1);
+                                                        setRequest({ ...request, assertions: arr });
+                                                    }}
+                                                    className="px-2 rounded-lg hover:bg-black/5 dark:hover:bg-white/5"
+                                                    title="Remove"
+                                                >
+                                                    <X className="w-3 h-3" style={{ color: 'var(--node-text-muted)' }} />
+                                                </button>
+                                            </div>
+                                        ))}
+                                        <button
+                                            type="button"
+                                            onClick={() => setRequest({ ...request, assertions: [...(request.assertions || []), { id: `${Date.now()}-${Math.random().toString(36).slice(2,6)}`, type: 'status', equals: 200 }] })}
+                                            className="px-2 py-1.5 text-xs rounded-lg button-glass"
+                                            style={{ backgroundColor: 'var(--button-secondary-bg)', color: 'var(--button-secondary-text)', border: '1px solid var(--node-border)' }}
+                                        >
+                                            + Add Assertion
+                                        </button>
+                                    </div>
+                                </div>
                             </motion.div>
                         )}
                     </AnimatePresence>

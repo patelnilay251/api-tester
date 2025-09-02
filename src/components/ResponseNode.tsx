@@ -1,9 +1,10 @@
 'use client';
 
-import { memo, useState } from 'react';
+import { memo, useMemo, useState } from 'react';
 import { Handle, Position } from '@xyflow/react';
 import { motion } from 'framer-motion';
 import { useTheme } from '@/contexts/ThemeContext';
+import { Assertion, AssertionResult, ResponseData, RequestData } from '@/types';
 import {
     CheckCircle,
     XCircle,
@@ -21,20 +22,10 @@ import {
 interface ResponseNodeProps {
     id: string;
     data: {
-        response: {
-            status: number;
-            statusText: string;
-            headers: Record<string, string>;
-            data: any;
-            responseTime: number;
-            url: string;
-        };
-        requestData: {
-            url: string;
-            method: string;
-            headers: string;
-            data: string;
-        };
+        response: ResponseData;
+        requestData: RequestData;
+        assertions?: Assertion[];
+        assertionResults?: AssertionResult[];
         name?: string;
         onDelete?: (nodeId: string) => void;
         onNameChange?: (nodeId: string, newName: string) => void;
@@ -48,6 +39,12 @@ const ResponseNode = memo(({ id, data, selected }: ResponseNodeProps) => {
     const [isEditingName, setIsEditingName] = useState(false);
     const { response, requestData } = data;
     const [currentName, setCurrentName] = useState(data.name || `Response ${response.status}`);
+    const passFail = useMemo(() => {
+        const arr = data.assertionResults || [];
+        const passed = arr.filter(r => r.passed).length;
+        const failed = arr.length - passed;
+        return { passed, failed };
+    }, [data.assertionResults]);
 
     const handleCopy = async () => {
         await navigator.clipboard.writeText(JSON.stringify(response.data, null, 2));
@@ -200,7 +197,7 @@ const ResponseNode = memo(({ id, data, selected }: ResponseNodeProps) => {
                 <div className="flex items-center gap-2 text-xs mb-2" style={{ color: 'var(--node-text-muted)' }}>
                     <span className="font-mono">{requestData.method}</span>
                     <span className="truncate">
-                        {new URL(requestData.url).pathname}
+                        {(() => { try { return new URL(requestData.url).pathname; } catch { return requestData.url; } })()}
                     </span>
                 </div>
 
@@ -211,9 +208,17 @@ const ResponseNode = memo(({ id, data, selected }: ResponseNodeProps) => {
                         {response.status} {response.statusText}
                     </div>
 
-                    <div className="flex items-center gap-1 text-xs" style={{ color: 'var(--node-text-muted)' }}>
-                        <Clock className="w-3 h-3" />
-                        {response.responseTime}ms
+                    <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1 text-xs" style={{ color: 'var(--node-text-muted)' }}>
+                            <Clock className="w-3 h-3" />
+                            {response.responseTime}ms
+                        </div>
+                        {(data.assertionResults && data.assertionResults.length > 0) && (
+                            <div className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-medium border ${passFail.failed === 0 ? 'text-green-700 bg-green-50 border-green-200' : 'text-yellow-700 bg-yellow-50 border-yellow-200'}`}>
+                                <Check className="w-3 h-3" />
+                                {passFail.passed}/{data.assertionResults.length} passed
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
@@ -222,6 +227,18 @@ const ResponseNode = memo(({ id, data, selected }: ResponseNodeProps) => {
             <div className="p-4">
                 {showDetails ? (
                     <div className="space-y-3">
+                        {(data.assertionResults && data.assertionResults.length > 0) && (
+                            <div>
+                                <h4 className="text-xs font-medium mb-1" style={{ color: 'var(--node-text-muted)' }}>Assertions</h4>
+                                <ul className="space-y-1">
+                                    {data.assertionResults.map((r) => (
+                                        <li key={r.id} className={`px-2 py-1 rounded text-xs border ${r.passed ? 'text-green-700 bg-green-50 border-green-200' : 'text-red-700 bg-red-50 border-red-200'}`}>
+                                            {r.passed ? '✓' : '×'} {r.description}
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                        )}
                         {/* Response Headers */}
                         <div>
                             <h4 className="text-xs font-medium mb-1" style={{ color: 'var(--node-text-muted)' }}>Headers</h4>
@@ -264,10 +281,10 @@ const ResponseNode = memo(({ id, data, selected }: ResponseNodeProps) => {
                             }}
                         >
                             {typeof response.data === 'string'
-                                ? response.data.slice(0, 100)
+                                ? (response.data || '').slice(0, 100)
                                 : JSON.stringify(response.data, null, 2).slice(0, 100)
                             }
-                            {(typeof response.data === 'string' ? response.data : JSON.stringify(response.data)).length > 100 && (
+                            {(typeof response.data === 'string' ? (response.data || '') : JSON.stringify(response.data)).length > 100 && (
                                 <div
                                     className="absolute bottom-0 right-0 bg-gradient-to-l to-transparent w-8 h-4"
                                     style={{
