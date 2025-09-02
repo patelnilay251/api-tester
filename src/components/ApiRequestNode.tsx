@@ -253,6 +253,8 @@ const ApiRequestNode = memo(({ id, data, selected }: ApiRequestNodeProps) => {
                 background: 'var(--node-bg)',
                 borderColor: 'var(--node-border)',
                 boxShadow: 'var(--node-shadow)',
+                transition: 'width 0.24s cubic-bezier(0.4, 0, 0.2, 1)',
+                willChange: 'width',
                 ...(selected && {
                     ringColor: theme === 'dark' ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.2)'
                 })
@@ -385,13 +387,23 @@ const ApiRequestNode = memo(({ id, data, selected }: ApiRequestNodeProps) => {
                     </div>
 
                     {/* Expanded Section */}
-                    <AnimatePresence>
+                    <AnimatePresence initial={false}>
                         {isExpanded && (
                             <motion.div
-                                initial={{ height: 0, opacity: 0 }}
-                                animate={{ height: 'auto', opacity: 1 }}
-                                exit={{ height: 0, opacity: 0 }}
-                                className="space-y-3"
+                                key="expanded"
+                                initial="collapsed"
+                                animate="open"
+                                exit="collapsed"
+                                variants={{
+                                    open: { height: 'auto', opacity: 1 },
+                                    collapsed: { height: 0, opacity: 0 }
+                                }}
+                                transition={{
+                                    height: { duration: 0.25, ease: [0.4, 0.0, 0.2, 1] },
+                                    opacity: { duration: 0.18, ease: [0.4, 0.0, 0.2, 1], delay: 0.05 }
+                                }}
+                                className="space-y-3 overflow-hidden"
+                                style={{ willChange: 'height, opacity', pointerEvents: isExpanded ? 'auto' : 'none' }}
                             >
                                 {/* Query Params */}
                                 <div>
