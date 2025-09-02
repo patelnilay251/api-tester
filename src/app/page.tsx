@@ -10,7 +10,7 @@ import ResponseNode from '@/components/ResponseNode';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useEnv } from '@/contexts/EnvContext';
 import { useHistoryLog } from '@/contexts/HistoryContext';
-import { RequestData, ResponseData } from '@/types';
+import { RequestData, ResponseData, Assertion, AssertionResult } from '@/types';
 
 import '@xyflow/react/dist/style.css';
 
@@ -18,7 +18,12 @@ interface ApiRequestNodeData extends Record<string, unknown> {
   label: string;
   name?: string;
   initialRequest?: RequestData;
-  onRequestSent: (nodeId: string, requestData: RequestData, response: ResponseData, meta?: { assertions?: any[]; results?: any[] }) => void;
+  onRequestSent: (
+    nodeId: string,
+    requestData: RequestData,
+    response: ResponseData,
+    meta?: { assertions?: Assertion[]; results?: AssertionResult[] }
+  ) => void;
   onDelete: (nodeId: string) => void;
   onNameChange?: (nodeId: string, newName: string) => void;
 }
@@ -26,8 +31,8 @@ interface ApiRequestNodeData extends Record<string, unknown> {
 interface ResponseNodeData extends Record<string, unknown> {
   response: ResponseData;
   requestData: RequestData;
-  assertions?: any[];
-  assertionResults?: any[];
+  assertions?: Assertion[];
+  assertionResults?: AssertionResult[];
   name?: string;
   onDelete?: (nodeId: string) => void;
   onNameChange?: (nodeId: string, newName: string) => void;
@@ -53,7 +58,7 @@ export default function Home() {
   const [chatMessage, setChatMessage] = useState('');
   const [selectedModel, setSelectedModel] = useState('gpt-4');
   const chatInputRef = useRef<HTMLInputElement>(null);
-  const [isInteractingWithChat, setIsInteractingWithChat] = useState(false);
+  // compact: remove unused interaction marker to satisfy lint
   const [isEnvOpen, setIsEnvOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
 
@@ -131,7 +136,12 @@ export default function Home() {
     });
   }, [setNodes, setEdges]);
 
-  const handleRequestSent = useCallback((nodeId: string, requestData: RequestData, response: ResponseData, meta?: { assertions?: any[]; results?: any[] }) => {
+  const handleRequestSent = useCallback((
+    nodeId: string,
+    requestData: RequestData,
+    response: ResponseData,
+    meta?: { assertions?: Assertion[]; results?: AssertionResult[] }
+  ) => {
     console.log('handleRequestSent called:', { nodeId, requestData, response });
 
     const responseNodeId = `response-${Date.now()}`;
@@ -182,7 +192,7 @@ export default function Home() {
       console.log('Creating edge:', newEdge);
       return [...currentEdges, newEdge];
     });
-  }, [setNodes, setEdges, handleDeleteSingleNode, handleNameChange, nodeNames]);
+  }, [setNodes, setEdges, handleDeleteSingleNode, handleNameChange, nodeNames, theme]);
 
   const initialNodes: AppNode[] = useMemo(() => [
     {
@@ -339,9 +349,7 @@ export default function Home() {
     setIsMenuOpen(false);
   }, []);
 
-  const toggleChat = useCallback(() => {
-    setIsChatOpen(prev => !prev);
-  }, []);
+  // removed unused toggleChat
 
   const closeChat = useCallback(() => {
     setIsChatOpen(false);
@@ -690,11 +698,9 @@ export default function Home() {
           }}
           onMouseDown={(e) => {
             e.stopPropagation();
-            setIsInteractingWithChat(true);
           }}
           onClick={(e) => e.stopPropagation()}
           onPointerDown={(e) => e.stopPropagation()}
-          onMouseLeave={() => setIsInteractingWithChat(false)}
         >
 
           {/* Model Selection */}

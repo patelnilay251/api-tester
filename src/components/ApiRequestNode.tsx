@@ -6,11 +6,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useEnv } from '@/contexts/EnvContext';
 import { useHistoryLog } from '@/contexts/HistoryContext';
-import { Assertion, RequestData } from '@/types';
+import { Assertion, AssertionResult, RequestData, ResponseData } from '@/types';
 import {
     Send,
     Globe,
-    Code,
+    
     X,
     Plus,
     Maximize2,
@@ -28,8 +28,8 @@ interface ApiRequestNodeProps {
         onRequestSent: (
             nodeId: string,
             requestData: RequestData,
-            response: any,
-            meta?: { assertions?: Assertion[]; results?: { id: string; passed: boolean; description: string }[] }
+            response: ResponseData,
+            meta?: { assertions?: Assertion[]; results?: AssertionResult[] }
         ) => void;
         onDelete: (nodeId: string) => void;
         onNameChange?: (nodeId: string, newName: string) => void;
@@ -76,19 +76,19 @@ const ApiRequestNode = memo(({ id, data, selected }: ApiRequestNodeProps) => {
 
         try {
             // Parse headers
-            let parsedHeaders = {};
+            let parsedHeaders: Record<string, string> = {};
             if (request.headers.trim()) {
                 try {
-                    parsedHeaders = JSON.parse(request.headers);
+                    parsedHeaders = JSON.parse(request.headers) as Record<string, string>;
                 } catch {
                     const headerLines = request.headers.split('\n');
-                    parsedHeaders = headerLines.reduce((acc: any, line) => {
+                    parsedHeaders = headerLines.reduce<Record<string, string>>((acc, line) => {
                         const [key, value] = line.split(':').map(s => s.trim());
                         if (key && value) {
                             acc[key] = value;
                         }
                         return acc;
-                    }, {});
+                    }, {} as Record<string, string>);
                 }
             }
 
@@ -120,8 +120,8 @@ const ApiRequestNode = memo(({ id, data, selected }: ApiRequestNodeProps) => {
             // Bearer token header (unless explicitly set)
             const useBearer = request.useBearer;
             const bearerToken = request.bearerToken?.trim() || envToken || '';
-            if (useBearer && bearerToken && !(parsedHeaders as any)['Authorization']) {
-                (parsedHeaders as any)['Authorization'] = `Bearer ${resolveString(bearerToken)}`;
+            if (useBearer && bearerToken && !parsedHeaders['Authorization']) {
+                parsedHeaders['Authorization'] = `Bearer ${resolveString(bearerToken)}`;
             }
 
             // Resolve env placeholders inside headers and data
@@ -141,12 +141,12 @@ const ApiRequestNode = memo(({ id, data, selected }: ApiRequestNodeProps) => {
                 }),
             });
 
-            const result = await res.json();
+            const result: ResponseData = await res.json();
 
             if (res.ok) {
                 // Basic response validation
                 const assertions = request.assertions || [];
-                const results = assertions.map((a) => {
+                const results: AssertionResult[] = assertions.map((a) => {
                     try {
                         if (a.type === 'status') {
                             const passed = Number(result.status) === Number(a.equals);
@@ -181,7 +181,7 @@ const ApiRequestNode = memo(({ id, data, selected }: ApiRequestNodeProps) => {
                     request: {
                         url: resolvedUrl,
                         method: request.method,
-                        headers: (parsedHeaders as any) || {},
+                        headers: parsedHeaders || {},
                         data: parsedData,
                         queryParams: request.queryParams,
                         usedBearer: useBearer,
@@ -202,7 +202,7 @@ const ApiRequestNode = memo(({ id, data, selected }: ApiRequestNodeProps) => {
                     request: {
                         url: resolvedUrl,
                         method: request.method,
-                        headers: (parsedHeaders as any) || {},
+                        headers: parsedHeaders || {},
                         data: parsedData,
                         queryParams: request.queryParams,
                         usedBearer: useBearer,
@@ -552,8 +552,9 @@ const ApiRequestNode = memo(({ id, data, selected }: ApiRequestNodeProps) => {
                                                         type="number"
                                                         value={a.equals}
                                                         onChange={(e) => {
-                                                            const arr = [...(request.assertions || [])] as any;
-                                                            arr[idx] = { ...a, equals: Number(e.target.value) };
+                                                            const arr = [...(request.assertions || [])] as Assertion[];
+                                                            const next: Assertion = { ...a, equals: Number(e.target.value) } as Assertion;
+                                                            arr[idx] = next;
                                                             setRequest({ ...request, assertions: arr });
                                                         }}
                                                         className="w-24 px-2 py-1.5 text-xs rounded-lg border-0 focus:ring-1 node-input"
@@ -567,8 +568,9 @@ const ApiRequestNode = memo(({ id, data, selected }: ApiRequestNodeProps) => {
                                                         placeholder="text"
                                                         value={a.text}
                                                         onChange={(e) => {
-                                                            const arr = [...(request.assertions || [])] as any;
-                                                            arr[idx] = { ...a, text: e.target.value };
+                                                            const arr = [...(request.assertions || [])] as Assertion[];
+                                                            const next: Assertion = { ...a, text: e.target.value } as Assertion;
+                                                            arr[idx] = next;
                                                             setRequest({ ...request, assertions: arr });
                                                         }}
                                                         className="flex-1 px-2 py-1.5 text-xs rounded-lg border-0 focus:ring-1 node-input"
@@ -583,8 +585,9 @@ const ApiRequestNode = memo(({ id, data, selected }: ApiRequestNodeProps) => {
                                                             placeholder="header"
                                                             value={a.header}
                                                             onChange={(e) => {
-                                                                const arr = [...(request.assertions || [])] as any;
-                                                                arr[idx] = { ...a, header: e.target.value };
+                                                                const arr = [...(request.assertions || [])] as Assertion[];
+                                                                const next: Assertion = { ...a, header: e.target.value } as Assertion;
+                                                                arr[idx] = next;
                                                                 setRequest({ ...request, assertions: arr });
                                                             }}
                                                             className="w-32 px-2 py-1.5 text-xs rounded-lg border-0 focus:ring-1 node-input"
@@ -595,8 +598,9 @@ const ApiRequestNode = memo(({ id, data, selected }: ApiRequestNodeProps) => {
                                                             placeholder="contains"
                                                             value={a.text}
                                                             onChange={(e) => {
-                                                                const arr = [...(request.assertions || [])] as any;
-                                                                arr[idx] = { ...a, text: e.target.value };
+                                                                const arr = [...(request.assertions || [])] as Assertion[];
+                                                                const next: Assertion = { ...a, text: e.target.value } as Assertion;
+                                                                arr[idx] = next;
                                                                 setRequest({ ...request, assertions: arr });
                                                             }}
                                                             className="flex-1 px-2 py-1.5 text-xs rounded-lg border-0 focus:ring-1 node-input"

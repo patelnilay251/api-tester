@@ -23,7 +23,7 @@ export interface ResponseData {
   status: number;
   statusText: string;
   headers: Record<string, string>;
-  data: any;
+  data: unknown;
   responseTime: number;
   url: string;
 }
@@ -33,4 +33,3 @@ export interface AssertionResult {
   passed: boolean;
   description: string;
 }
-

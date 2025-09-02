@@ -3,6 +3,7 @@
 import { memo, useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import { Handle, Position } from '@xyflow/react';
 import { motion, AnimatePresence } from 'framer-motion';
+import Image from 'next/image';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Assertion, AssertionResult, ResponseData, RequestData } from '@/types';
 import {
@@ -64,7 +65,7 @@ const ResponseNode = memo(({ id, data, selected }: ResponseNodeProps) => {
     const [searchQuery, setSearchQuery] = useState('');
     const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
     const [selectedPath, setSelectedPath] = useState<string>('');
-    const [defaultCollapseLevel, setDefaultCollapseLevel] = useState<number>(2);
+    const [defaultCollapseLevel] = useState<number>(2);
     const [isExpandMenuOpen, setIsExpandMenuOpen] = useState(false);
     const expandMenuRef = useRef<HTMLDivElement | null>(null);
     const passFail = useMemo(() => {
@@ -130,7 +131,8 @@ const ResponseNode = memo(({ id, data, selected }: ResponseNodeProps) => {
     // Content-type helpers
     const contentType = useMemo(() => {
         const h = response.headers || {};
-        const ct = h['content-type'] || (h as any)['Content-Type'] || '';
+        const ctEntry = Object.entries(h).find(([k]) => k.toLowerCase() === 'content-type');
+        const ct = ctEntry ? ctEntry[1] : '';
         return String(ct).toLowerCase();
     }, [response.headers]);
 
@@ -178,7 +180,7 @@ const ResponseNode = memo(({ id, data, selected }: ResponseNodeProps) => {
     // Table columns initialization
     const allColumns = useMemo(() => {
         if (!isArrayOfObjects) return [] as string[];
-        const rows = (bodyJson as any[]);
+        const rows = Array.isArray(bodyJson) ? (bodyJson as Array<Record<string, unknown>>) : [];
         const cols = new Set<string>();
         for (let i = 0; i < Math.min(rows.length, 50); i++) {
             const r = rows[i];
@@ -196,14 +198,14 @@ const ResponseNode = memo(({ id, data, selected }: ResponseNodeProps) => {
     }, [isArrayOfObjects, allColumns]);
 
     // Initialize default collapsed state by depth
-    const collectPathsWithDepth = useCallback((obj: any, base: string = '$', depth = 0): { path: string; depth: number }[] => {
+    const collectPathsWithDepth = useCallback((obj: unknown, base: string = '$', depth = 0): { path: string; depth: number }[] => {
         const out: { path: string; depth: number }[] = [];
         if (obj && typeof obj === 'object') {
             out.push({ path: base, depth });
             if (Array.isArray(obj)) {
                 obj.forEach((v, i) => out.push(...collectPathsWithDepth(v, `${base}[${i}]`, depth + 1)));
             } else {
-                Object.keys(obj).forEach((k) => out.push(...collectPathsWithDepth(obj[k], `${base}.${k}` , depth + 1)));
+                Object.keys(obj as Record<string, unknown>).forEach((k) => out.push(...collectPathsWithDepth((obj as Record<string, unknown>)[k], `${base}.${k}` , depth + 1)));
             }
         }
         return out;
@@ -279,14 +281,14 @@ const ResponseNode = memo(({ id, data, selected }: ResponseNodeProps) => {
         return res;
     }, [searchQuery, bodyText]);
 
-    const collectTreeMatches = useCallback((obj: any, base: string = '$', out: string[] = []) => {
+    const collectTreeMatches = useCallback((obj: unknown, base: string = '$', out: string[] = []) => {
         if (obj && typeof obj === 'object') {
             if (Array.isArray(obj)) {
                 obj.forEach((v, i) => collectTreeMatches(v, `${base}[${i}]`, out));
             } else {
-                Object.keys(obj).forEach((k) => {
+                Object.keys(obj as Record<string, unknown>).forEach((k) => {
                     if (searchQuery && norm(k).includes(norm(searchQuery))) out.push(`${base}.${k}`);
-                    collectTreeMatches(obj[k], `${base}.${k}`, out);
+                    collectTreeMatches((obj as Record<string, unknown>)[k], `${base}.${k}`, out);
                 });
             }
         } else if (obj != null) {
@@ -400,26 +402,20 @@ const ResponseNode = memo(({ id, data, selected }: ResponseNodeProps) => {
     };
 
     // Collapse/Expand helpers
-    const collectContainerPaths = useCallback((obj: any, base: string = '$'): string[] => {
+    const collectContainerPaths = useCallback((obj: unknown, base: string = '$'): string[] => {
         const paths: string[] = [];
         if (obj && typeof obj === 'object') {
             paths.push(base);
             if (Array.isArray(obj)) {
                 obj.forEach((v, i) => paths.push(...collectContainerPaths(v, `${base}[${i}]`)));
             } else {
-                Object.keys(obj).forEach((k) => paths.push(...collectContainerPaths(obj[k], `${base}.${k}`)));
+                Object.keys(obj as Record<string, unknown>).forEach((k) => paths.push(...collectContainerPaths((obj as Record<string, unknown>)[k], `${base}.${k}`)));
             }
         }
         return paths;
     }, []);
 
-    const collapseAll = useCallback(() => {
-        if (!bodyJson) return;
-        const all = new Set(collectContainerPaths(bodyJson));
-        setCollapsedPaths(all);
-    }, [bodyJson, collectContainerPaths]);
-
-    const expandAll = useCallback(() => setCollapsedPaths(new Set()), []);
+    // expand/collapse helpers removed for compact toolbar
 
     const togglePath = useCallback((path: string) => {
         setCollapsedPaths((prev) => {
@@ -432,9 +428,9 @@ const ResponseNode = memo(({ id, data, selected }: ResponseNodeProps) => {
     const currentTreeMatchPath = useMemo(() => (activeTab === 'tree' && treeMatches.length > 0) ? treeMatches[currentMatchIndex] : undefined, [activeTab, treeMatches, currentMatchIndex]);
 
     // JSON Node renderer
-    const JsonNode = ({ value, k, path, depth }: { value: any; k?: string; path: string; depth: number }) => {
-        const isContainer = value && typeof value === 'object';
+    const JsonNode = ({ value, k, path, depth }: { value: unknown; k?: string; path: string; depth: number }) => {
         const isArr = Array.isArray(value);
+        const isContainer = (!isArr && typeof value === 'object' && value !== null) || isArr;
         const collapsed = collapsedPaths.has(path);
         const padding = 8 + depth * 12;
 
@@ -483,7 +479,7 @@ const ResponseNode = memo(({ id, data, selected }: ResponseNodeProps) => {
 
                     {isContainer && (
                         <span className="font-mono" style={{ color: 'var(--node-text-muted)' }}>
-                            {isArr ? `Array(${value.length})` : 'Object'}
+                            {isArr ? `Array(${(value as Array<unknown>).length})` : 'Object'}
                         </span>
                     )}
 
@@ -500,11 +496,11 @@ const ResponseNode = memo(({ id, data, selected }: ResponseNodeProps) => {
                 {isContainer && !collapsed && (
                     <div className="space-y-0.5">
                         {isArr
-                            ? (value as any[]).map((v, i) => (
+                            ? (value as Array<unknown>).map((v, i) => (
                                 <JsonNode key={i} value={v} k={String(i)} path={`${path}[${i}]`} depth={depth + 1} />
                             ))
-                            : Object.keys(value).map((ck) => (
-                                <JsonNode key={ck} value={value[ck]} k={ck} path={`${path}.${ck}`} depth={depth + 1} />
+                            : Object.keys(value as Record<string, unknown>).map((ck) => (
+                                <JsonNode key={ck} value={(value as Record<string, unknown>)[ck]} k={ck} path={`${path}.${ck}`} depth={depth + 1} />
                             ))}
                     </div>
                 )}
@@ -854,7 +850,9 @@ const ResponseNode = memo(({ id, data, selected }: ResponseNodeProps) => {
 
                                     {activeTab === 'image' && (
                                         <motion.div key="image" initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.15 }} className="p-2 flex flex-col gap-2 items-center justify-center" style={{ backgroundColor: 'var(--node-input-bg)' }}>
-                                            <img src={response.url} alt="response" className="max-h-80 object-contain rounded" />
+                                            <div className="w-full flex items-center justify-center" style={{ maxHeight: '20rem' }}>
+                                                <Image src={response.url} alt="response" width={800} height={600} className="object-contain max-h-80 rounded" unoptimized />
+                                            </div>
                                             <a href={response.url} target="_blank" rel="noreferrer" className="px-2 py-1 text-xs rounded-lg hover:bg-black/5 dark:hover:bg-white/5 flex items-center gap-1" style={{ color: 'var(--node-text)' }}>
                                                 <ExternalLink className="w-3 h-3" /> Open original
                                             </a>
@@ -895,7 +893,7 @@ const ResponseNode = memo(({ id, data, selected }: ResponseNodeProps) => {
                                                         </tr>
                                                     </thead>
                                                     <tbody>
-                                                        {(bodyJson as any[]).map((row, idx) => (
+                                                        {(Array.isArray(bodyJson) ? (bodyJson as Array<Record<string, unknown>>) : []).map((row, idx) => (
                                                             <tr key={idx} className="border-t" style={{ borderColor: 'var(--node-border)' }}>
                                                                 {visibleColumns.map((c) => (
                                                                     <td key={c} className="px-2 py-1" style={{ color: 'var(--node-text-muted)' }}>
