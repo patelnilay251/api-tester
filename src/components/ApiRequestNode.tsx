@@ -42,7 +42,7 @@ const ApiRequestNode = memo(({ id, data, selected }: ApiRequestNodeProps) => {
     const { resolveString, resolveDeep, token: envToken, baseUrl: envBaseUrl } = useEnv();
     const history = useHistoryLog();
     const [request, setRequest] = useState<RequestData>({
-        url: '',
+        url: 'https://randomuser.me/api/',
         method: 'GET',
         headers: '',
         data: '',
@@ -65,7 +65,7 @@ const ApiRequestNode = memo(({ id, data, selected }: ApiRequestNodeProps) => {
                 ...data.initialRequest,
             }));
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const handleSubmit = useCallback(async (e: React.FormEvent) => {
@@ -115,7 +115,7 @@ const ApiRequestNode = memo(({ id, data, selected }: ApiRequestNodeProps) => {
                     if (key) u.searchParams.set(resolveString(key), resolveString(value));
                 });
                 resolvedUrl = u.toString();
-            } catch {}
+            } catch { }
 
             // Bearer token header (unless explicitly set)
             const useBearer = request.useBearer;
@@ -621,7 +621,7 @@ const ApiRequestNode = memo(({ id, data, selected }: ApiRequestNodeProps) => {
                                         ))}
                                         <button
                                             type="button"
-                                            onClick={() => setRequest({ ...request, assertions: [...(request.assertions || []), { id: `${Date.now()}-${Math.random().toString(36).slice(2,6)}`, type: 'status', equals: 200 }] })}
+                                            onClick={() => setRequest({ ...request, assertions: [...(request.assertions || []), { id: `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, type: 'status', equals: 200 }] })}
                                             className="px-2 py-1.5 text-xs rounded-lg button-glass"
                                             style={{ backgroundColor: 'var(--button-secondary-bg)', color: 'var(--button-secondary-text)', border: '1px solid var(--node-border)' }}
                                         >

@@ -57,10 +57,12 @@
 
   /* Node colors */
   --node-bg: rgba(20, 20, 20, 0.95);
-  --node-border: rgba(255, 255, 255, 0.15);
-  --node-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-  --node-header-bg: rgba(255, 255, 255, 0.08);
-  --node-input-bg: rgba(255, 255, 255, 0.08);
+  /* Slightly tighter contrast for dark mode to keep surfaces unified */
+  --node-border: rgba(255, 255, 255, 0.12);
+  --node-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+  /* Make header/input just slightly lighter than the card background */
+  --node-header-bg: rgba(255, 255, 255, 0.05);
+  --node-input-bg: rgba(255, 255, 255, 0.05);
   --node-text: var(--color-white);
   --node-text-muted: rgba(255, 255, 255, 0.65);
 
