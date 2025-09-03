@@ -11,6 +11,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useEnv } from '@/contexts/EnvContext';
 import { useHistoryLog } from '@/contexts/HistoryContext';
 import { RequestData, ResponseData, Assertion, AssertionResult } from '@/types';
+import useAppStore from '@/store/appStore';
 
 import '@xyflow/react/dist/style.css';
 
@@ -53,14 +54,21 @@ export default function Home() {
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [nodeId, setNodeId] = useState(0);
   const [nodeNames, setNodeNames] = useState<Record<string, string>>({});
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [isChatOpen, setIsChatOpen] = useState(false);
-  const [chatMessage, setChatMessage] = useState('');
-  const [selectedModel, setSelectedModel] = useState('gpt-4');
+  const isMenuOpen = useAppStore((s) => s.isMenuOpen);
+  const setIsMenuOpen = useAppStore((s) => s.setIsMenuOpen);
+  const isChatOpen = useAppStore((s) => s.isChatOpen);
+  const openChat = useAppStore((s) => s.openChat);
+  const closeChat = useAppStore((s) => s.closeChat);
+  const chatMessage = useAppStore((s) => s.chatMessage);
+  const setChatMessage = useAppStore((s) => s.setChatMessage);
+  const selectedModel = useAppStore((s) => s.selectedModel);
+  const setSelectedModel = useAppStore((s) => s.setSelectedModel);
   const chatInputRef = useRef<HTMLInputElement>(null);
   // compact: remove unused interaction marker to satisfy lint
-  const [isEnvOpen, setIsEnvOpen] = useState(false);
-  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const isEnvOpen = useAppStore((s) => s.isEnvOpen);
+  const setIsEnvOpen = useAppStore((s) => s.setIsEnvOpen);
+  const isHistoryOpen = useAppStore((s) => s.isHistoryOpen);
+  const setIsHistoryOpen = useAppStore((s) => s.setIsHistoryOpen);
 
 
   const handleNameChange = useCallback((nodeId: string, newName: string) => {
@@ -342,26 +350,22 @@ export default function Home() {
   }, [initialNodes, setNodes, setEdges]);
 
   const toggleMenu = useCallback(() => {
-    setIsMenuOpen(prev => !prev);
-  }, []);
+    setIsMenuOpen(!isMenuOpen);
+  }, [isMenuOpen, setIsMenuOpen]);
 
   const closeMenu = useCallback(() => {
     setIsMenuOpen(false);
-  }, []);
+  }, [setIsMenuOpen]);
 
   // removed unused toggleChat
 
-  const closeChat = useCallback(() => {
-    setIsChatOpen(false);
-  }, []);
-
-  const openChat = useCallback(() => {
-    setIsChatOpen(true);
+  const openChatAndFocus = useCallback(() => {
+    openChat();
     // Focus input after animation completes
     setTimeout(() => {
       chatInputRef.current?.focus();
     }, 250);
-  }, []);
+  }, [openChat]);
 
   const handleSendMessage = useCallback(() => {
     if (!chatMessage.trim()) return;
@@ -374,9 +378,9 @@ export default function Home() {
 
     // Close chat after sending with slight delay for better UX
     setTimeout(() => {
-      setIsChatOpen(false);
+      closeChat();
     }, 100);
-  }, [chatMessage, selectedModel]);
+  }, [chatMessage, selectedModel, setChatMessage, closeChat]);
 
   // Keyboard shortcut handler
   useEffect(() => {
@@ -386,7 +390,7 @@ export default function Home() {
         if (isChatOpen) {
           closeChat();
         } else {
-          openChat();
+          openChatAndFocus();
         }
       }
       if (event.key === 'Escape' && isChatOpen) {
@@ -397,7 +401,7 @@ export default function Home() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [openChat, closeChat, isChatOpen]);
+  }, [openChatAndFocus, closeChat, isChatOpen]);
 
   return (
     <div className="h-screen w-screen canvas-background">
@@ -466,7 +470,7 @@ export default function Home() {
                 whileTap={{ scale: 0.98 }}
                 className="w-full flex items-center gap-3 px-3 py-2.5 text-sm rounded-xl transition-all hover:bg-black/5 dark:hover:bg-white/5"
                 style={{ color: 'var(--node-text)' }}
-                onClick={() => setIsEnvOpen((v) => !v)}
+                onClick={() => setIsEnvOpen(!isEnvOpen)}
               >
                 <Settings className="w-4 h-4" style={{ color: 'var(--node-text-muted)' }} />
                 Environment
@@ -818,7 +822,7 @@ export default function Home() {
             )}
           </button>
           <button
-            onClick={() => setIsHistoryOpen((v) => !v)}
+            onClick={() => setIsHistoryOpen(!isHistoryOpen)}
             className="flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-black/5 dark:hover:bg-white/5"
             style={{ color: 'var(--node-text)' }}
             title="Recent Requests"
