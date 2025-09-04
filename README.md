@@ -90,6 +90,30 @@ The test server runs on port 3001 and provides sample endpoints for testing.
 - **Icons**: Lucide React
 - **Test Server**: Express.js
 
+## 🤖 LLM (Agent) Setup
+
+This app includes a streaming Agent API backed by Google Gemini via the Vercel AI SDK.
+
+1) Install deps (already in package.json):
+
+```
+npm install
+```
+
+2) Configure environment:
+
+Create `.env.local` and set your key (or use Vercel project envs):
+
+```
+GOOGLE_GENERATIVE_AI_API_KEY=your_gemini_api_key
+```
+
+3) Start the dev server and open the chat bar (⌘/Ctrl + I). Select a model (Gemini 2.5 Flash/Pro) and type a prompt to stream a response.
+
+Files:
+- `src/app/api/agent/route.ts` — streaming endpoint using `ai` + `@ai-sdk/google`.
+- `src/app/page.tsx` — chat bar wired to `/api/agent` streaming.
+
 ## 📁 Project Structure
 
 ```

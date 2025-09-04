@@ -32,6 +32,15 @@ interface AppState {
   selectedModel: string;
   setSelectedModel: (v: string) => void;
 
+  // Context side panel
+  isContextOpen: boolean;
+  openContext: () => void;
+  closeContext: () => void;
+  contextText: string;
+  setContextText: (t: string) => void;
+  contextMessage: string;
+  setContextMessage: (t: string) => void;
+
   // Agent/run state (placeholder for future integration)
   activeRunId?: string;
   setActiveRunId: (id?: string) => void;
@@ -62,8 +71,16 @@ export const useAppStore = create<AppState>((set, get) => ({
   chatMessage: '',
   setChatMessage: (v) => set({ chatMessage: v }),
 
-  selectedModel: 'gpt-4',
+  selectedModel: 'gemini-2.5-flash',
   setSelectedModel: (v) => set({ selectedModel: v }),
+
+  isContextOpen: false,
+  openContext: () => set({ isContextOpen: true }),
+  closeContext: () => set({ isContextOpen: false }),
+  contextText: '',
+  setContextText: (t) => set({ contextText: t }),
+  contextMessage: '',
+  setContextMessage: (t) => set({ contextMessage: t }),
 
   // Run state
   activeRunId: undefined,
@@ -82,4 +99,3 @@ export const useAppStore = create<AppState>((set, get) => ({
 }));
 
 export default useAppStore;
-
