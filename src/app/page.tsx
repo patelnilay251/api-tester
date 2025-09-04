@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useState, useCallback, useMemo, useEffect } from 'react';
+import { motion } from 'framer-motion';
 import { ReactFlow, useNodesState, useEdgesState, addEdge, Connection, Edge, Node } from '@xyflow/react';
-import { Plus, RotateCcw, Moon, Sun, Menu, X, Settings, Info, Github, Coffee, MessageSquare, Send, ChevronDown, Clock, Copy } from 'lucide-react';
+import { Plus, RotateCcw, Moon, Sun, Menu, X, Settings, Info, Github, Coffee, Clock } from 'lucide-react';
 
 import ApiRequestNode from '@/components/ApiRequestNode';
 import ResponseNode from '@/components/ResponseNode';
@@ -14,6 +14,8 @@ import { RequestData, ResponseData, Assertion, AssertionResult } from '@/types';
 import useAppStore from '@/store/appStore';
 
 import '@xyflow/react/dist/style.css';
+import AgentChatBar from '@/components/chat/AgentChatBar';
+import ContextPanel from '@/components/chat/ContextPanel';
 
 interface ApiRequestNodeData extends Record<string, unknown> {
   label: string;
@@ -59,22 +61,11 @@ export default function Home() {
   const isChatOpen = useAppStore((s) => s.isChatOpen);
   const openChat = useAppStore((s) => s.openChat);
   const closeChat = useAppStore((s) => s.closeChat);
-  const chatMessage = useAppStore((s) => s.chatMessage);
-  const setChatMessage = useAppStore((s) => s.setChatMessage);
-  const selectedModel = useAppStore((s) => s.selectedModel);
-  const setSelectedModel = useAppStore((s) => s.setSelectedModel);
+  // Chat/Context model and message handling moved into components
   const isContextOpen = useAppStore((s) => s.isContextOpen);
   const openContext = useAppStore((s) => s.openContext);
   const closeContext = useAppStore((s) => s.closeContext);
-  const contextText = useAppStore((s) => s.contextText);
-  const setContextText = useAppStore((s) => s.setContextText);
-  const contextMessage = useAppStore((s) => s.contextMessage);
-  const setContextMessage = useAppStore((s) => s.setContextMessage);
-  const chatInputRef = useRef<HTMLInputElement>(null);
-  const [assistantStreamingText, setAssistantStreamingText] = useState('');
-  const [isAssistantStreaming, setIsAssistantStreaming] = useState(false);
-  const [isContextStreaming, setIsContextStreaming] = useState(false);
-  const contextInputRef = useRef<HTMLTextAreaElement>(null);
+  // Streaming state and refs moved into components
   // compact: remove unused interaction marker to satisfy lint
   const isEnvOpen = useAppStore((s) => s.isEnvOpen);
   const setIsEnvOpen = useAppStore((s) => s.setIsEnvOpen);
@@ -370,97 +361,12 @@ export default function Home() {
 
   // removed unused toggleChat
 
-  const openChatAndFocus = useCallback(() => {
-    openChat();
-    // Focus input after animation completes
-    setTimeout(() => {
-      chatInputRef.current?.focus();
-    }, 250);
-  }, [openChat]);
-
-  const handleSendAgentMessage = useCallback(async () => {
-    if (!chatMessage.trim() || isAssistantStreaming) return;
-
-    try {
-      setAssistantStreamingText('');
-      setIsAssistantStreaming(true);
-      // Agentic-only chat bar
-
-      const res = await fetch('/api/agent', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: chatMessage, model: selectedModel, mode: 'agent' }),
-      });
-
-      if (!res.ok || !res.body) {
-        setIsAssistantStreaming(false);
-        return;
-      }
-
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let done = false;
-      while (!done) {
-        const { value, done: d } = await reader.read();
-        done = d;
-        if (value) {
-          const chunk = decoder.decode(value, { stream: !done });
-          setAssistantStreamingText((prev) => prev + chunk);
-        }
-      }
-    } catch (e) {
-      console.error('Agent stream error', e);
-    } finally {
-      setIsAssistantStreaming(false);
-      setChatMessage('');
-    }
-  }, [chatMessage, selectedModel, isAssistantStreaming, setChatMessage]);
-
-  const handleSendContextMessage = useCallback(async () => {
-    if (!contextMessage.trim()) return;
-    try {
-      setContextText('');
-      setIsContextStreaming(true);
-      openContext();
-      const res = await fetch('/api/agent', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: contextMessage, model: selectedModel, mode: 'context' }),
-      });
-      if (!res.ok || !res.body) return;
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let done = false;
-      let running = '';
-      while (!done) {
-        const { value, done: d } = await reader.read();
-        done = d;
-        if (value) {
-          const chunk = decoder.decode(value, { stream: !done });
-          running += chunk;
-          setContextText(running);
-        }
-      }
-    } catch (e) {
-      console.error('Context stream error', e);
-    } finally {
-      setContextMessage('');
-      setIsContextStreaming(false);
-    }
-  }, [contextMessage, selectedModel, setContextText, openContext, setContextMessage]);
-
-  // Keyboard: Cmd/Ctrl + D for Context panel
-
   // Keyboard shortcut handler
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key === 'i') {
         event.preventDefault();
-        if (isChatOpen) {
-          closeChat();
-        } else {
-          openChatAndFocus();
-        }
+        if (isChatOpen) { closeChat(); } else { openChat(); }
       }
       // Prefer Cmd/Ctrl+Shift+K to avoid browser conflicts.
       if ((event.metaKey || event.ctrlKey) && (event.key === 'K' || event.key === 'k') && event.shiftKey) {
@@ -469,7 +375,7 @@ export default function Home() {
       }
       // Best-effort support for Cmd/Ctrl+K (some browsers route to search)
       if ((event.metaKey || event.ctrlKey) && (event.key === 'K' || event.key === 'k') && !event.shiftKey) {
-        try { event.preventDefault(); } catch {}
+        try { event.preventDefault(); } catch { }
         if (isContextOpen) closeContext(); else openContext();
       }
       if (event.key === 'Escape' && isChatOpen) {
@@ -480,14 +386,7 @@ export default function Home() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [openChatAndFocus, closeChat, isChatOpen, isContextOpen, openContext, closeContext]);
-
-  // Focus the context input when panel opens
-  useEffect(() => {
-    if (isContextOpen) {
-      setTimeout(() => contextInputRef.current?.focus(), 150);
-    }
-  }, [isContextOpen]);
+  }, [openChat, closeChat, isChatOpen, isContextOpen, openContext, closeContext]);
 
   return (
     <div className="h-screen w-screen canvas-background">
@@ -720,97 +619,7 @@ export default function Home() {
       </motion.div>
 
       {/* Context Side Panel */}
-      <AnimatePresence>
-        {isContextOpen && (
-          <motion.div
-            key="context-panel"
-            initial={{ x: 40, y: 20, opacity: 0 }}
-            animate={{ x: 0, y: 0, opacity: 1 }}
-            exit={{ x: 40, y: 20, opacity: 0 }}
-            transition={{ duration: 0.22, ease: 'easeOut' }}
-            className="fixed right-6 bottom-6 z-[9998] w-[min(36rem,calc(100vw-3rem))] h-[60vh]"
-          onMouseDown={(e) => e.stopPropagation()}
-          onClick={(e) => e.stopPropagation()}
-          >
-          <motion.div
-            initial={{ scale: 0.98 }}
-            animate={{ scale: 1 }}
-            exit={{ scale: 0.98 }}
-            transition={{ duration: 0.2, ease: 'easeOut' }}
-            className="h-full glass-themed rounded-2xl flex flex-col origin-bottom-right"
-            style={{ background: 'var(--node-bg)', borderColor: 'var(--node-border)', boxShadow: 'var(--shadow-lg)' }}
-          >
-              {/* Header */}
-              <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: 'var(--node-border)' }}>
-                <div className="flex items-center gap-2">
-                  <Info className="w-4 h-4" style={{ color: 'var(--node-text-muted)' }} />
-                  <div className="text-sm font-semibold" style={{ color: 'var(--node-text)' }}>
-                    Context Answer
-                  </div>
-                  <div className="text-[11px] px-2 py-0.5 rounded-lg" style={{ backgroundColor: 'var(--node-input-bg)', color: 'var(--node-text-muted)', border: '1px solid var(--node-border)' }}>
-                    {selectedModel}
-                  </div>
-                </div>
-                <div className="flex items-center gap-1">
-                  <button
-                    className="px-2 py-1 text-xs rounded-lg hover:bg-black/5 dark:hover:bg-white/5"
-                    style={{ color: 'var(--node-text)' }}
-                    onClick={async (e) => { e.stopPropagation(); try { await navigator.clipboard.writeText(contextText); } catch {} }}
-                  >
-                    <Copy className="w-4 h-4" />
-                  </button>
-                  <button
-                    className="px-2 py-1 text-xs rounded-lg hover:bg-black/5 dark:hover:bg-white/5"
-                    style={{ color: 'var(--node-text)' }}
-                    onClick={(e) => { e.stopPropagation(); closeContext(); }}
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-
-              {/* Content */}
-              <div className="flex-1 overflow-auto p-4" style={{ background: 'var(--node-header-bg)' }}>
-                <div className="prose prose-sm max-w-none h-full" style={{ color: 'var(--node-text)', whiteSpace: 'pre-wrap' }}>
-                  {contextText || (isContextStreaming ? 'Streaming…' : 'No content yet')}
-                </div>
-              </div>
-
-              {/* Footer input (merged chat input) */}
-              <div className="border-t p-3 sticky bottom-0" style={{ borderColor: 'var(--node-border)', background: 'var(--node-bg)' }}>
-                <div className="flex items-end gap-2">
-                  <textarea
-                    rows={2}
-                    placeholder="Ask for a contextual explanation..."
-                    value={contextMessage}
-                    onChange={(e) => setContextMessage(e.target.value)}
-                    ref={contextInputRef}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      handleSendContextMessage();
-                    }
-                  }}
-                    className="flex-1 px-3 py-2 rounded-xl border-0 focus:ring-0 text-sm"
-                    style={{ backgroundColor: 'var(--node-input-bg)', color: 'var(--node-text)', border: '1px solid var(--node-border)' }}
-                    disabled={isContextStreaming}
-                  />
-                  <button
-                    onClick={(e) => { e.stopPropagation(); handleSendContextMessage(); }}
-                    className="px-3 py-2 rounded-xl"
-                    disabled={!contextMessage.trim() || isContextStreaming}
-                    style={{ backgroundColor: contextMessage.trim() ? 'var(--button-primary-bg)' : 'var(--node-input-bg)', color: contextMessage.trim() ? 'var(--button-primary-text)' : 'var(--node-text-muted)', border: '1px solid var(--node-border)' }}
-                    title="Send"
-                  >
-                    <Send className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <ContextPanel />
 
       {/* Backdrop */}
       {isMenuOpen && (
@@ -840,26 +649,17 @@ export default function Home() {
           }}
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.98 }}
-          title="Open Chat Assistant (⌘+I)"
+
         >
-          <MessageSquare className="w-4 h-4" />
-          <div className="flex items-center gap-1 text-xs font-mono">
-            <kbd className="px-1 py-0.5 rounded text-xs" style={{
-              backgroundColor: 'var(--node-input-bg)',
-              color: 'var(--node-text-muted)',
-              border: '1px solid var(--node-border)'
-            }}>⌘</kbd>
-            <span style={{ color: 'var(--node-text-muted)' }}>+</span>
-            <kbd className="px-1 py-0.5 rounded text-xs" style={{
-              backgroundColor: 'var(--node-input-bg)',
-              color: 'var(--node-text-muted)',
-              border: '1px solid var(--node-border)'
-            }}>I</kbd>
-          </div>
+          <kbd className="px-2 py-1 rounded text-xs" style={{
+            backgroundColor: 'var(--node-input-bg)',
+            color: 'var(--node-text-muted)',
+            border: '1px solid var(--node-border)'
+          }}>⌘ + I</kbd>
         </motion.button>
       </motion.div>
 
-      {/* Command+Shift+K Context Button */}
+      {/* Command+K Context Button */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -876,180 +676,18 @@ export default function Home() {
           }}
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.98 }}
-          title="Open Context Assistant (⌘⇧K)"
+
         >
-          <Info className="w-4 h-4" />
-          <div className="flex items-center gap-1 text-xs font-mono">
-            <kbd className="px-1 py-0.5 rounded text-xs" style={{
-              backgroundColor: 'var(--node-input-bg)',
-              color: 'var(--node-text-muted)',
-              border: '1px solid var(--node-border)'
-            }}>⌘</kbd>
-            <span style={{ color: 'var(--node-text-muted)' }}>+</span>
-            <kbd className="px-1 py-0.5 rounded text-xs" style={{
-              backgroundColor: 'var(--node-input-bg)',
-              color: 'var(--node-text-muted)',
-              border: '1px solid var(--node-border)'
-            }}>⇧K</kbd>
-          </div>
+          <kbd className="px-2 py-1 rounded text-xs" style={{
+            backgroundColor: 'var(--node-input-bg)',
+            color: 'var(--node-text-muted)',
+            border: '1px solid var(--node-border)'
+          }}>⌘ + K</kbd>
         </motion.button>
       </motion.div>
 
       {/* Compact Chat Bar */}
-      <motion.div
-        initial={false}
-        animate={isChatOpen ? { opacity: 1, y: 0 } : { opacity: 0, y: 80 }}
-        transition={{
-          duration: 0.25,
-          ease: [0.4, 0.0, 0.2, 1],
-          opacity: { duration: 0.15 }
-        }}
-        className={`fixed bottom-6 left-1/2 transform -translate-x-1/2 z-[9999] w-full max-w-4xl px-6 chat-overlay ${isChatOpen ? 'pointer-events-auto' : 'pointer-events-none'
-          }`}
-        style={{
-          willChange: 'transform, opacity'
-        }}
-      >
-        <div
-          className="flex items-center gap-2 px-4 py-3 glass-themed rounded-2xl chat-bar"
-          style={{
-            background: 'var(--node-bg)',
-            borderColor: 'var(--node-border)',
-            boxShadow: 'var(--node-shadow)'
-          }}
-          onMouseDown={(e) => {
-            e.stopPropagation();
-          }}
-          onClick={(e) => e.stopPropagation()}
-          onPointerDown={(e) => e.stopPropagation()}
-        >
-
-          {/* Model Selection */}
-          <div className="relative">
-            <select
-              value={selectedModel}
-              onChange={(e) => setSelectedModel(e.target.value)}
-              className="appearance-none px-3 py-2.5 pr-7 text-xs rounded-xl border-0 focus:ring-0"
-              style={{
-                backgroundColor: 'var(--node-input-bg)',
-                color: 'var(--node-text)',
-                cursor: 'pointer',
-                border: '1px solid var(--node-border)'
-              }}
-              onMouseDown={(e) => e.stopPropagation()}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
-              <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
-            </select>
-            <ChevronDown className="absolute right-2 top-1/2 transform -translate-y-1/2 w-3 h-3 pointer-events-none" style={{ color: 'var(--node-text-muted)' }} />
-          </div>
-
-          {/* Assistant Output (streaming) */}
-          {(assistantStreamingText || isAssistantStreaming) && (
-            <div className="flex-1">
-              <div
-                className="px-3 py-2 text-xs rounded-xl mb-2 relative"
-                style={{
-                  backgroundColor: 'var(--node-input-bg)',
-                  color: 'var(--node-text)',
-                  border: '1px solid var(--node-border)',
-                  maxHeight: 96,
-                  overflow: 'hidden'
-                }}
-                title={assistantStreamingText}
-              >
-                <div style={{ whiteSpace: 'pre-wrap' }}>
-                  {assistantStreamingText || (isAssistantStreaming ? 'Thinking...' : '')}
-                </div>
-                {/* Fade bottom for overflow */}
-                <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-6" style={{
-                  background: 'linear-gradient(to bottom, rgba(0,0,0,0) 0%, var(--node-input-bg) 90%)'
-                }} />
-                {/* View button */}
-                {assistantStreamingText && (
-                  <div className="absolute top-1 right-1">
-                    <button
-                      className="px-2 py-1 text-[10px] rounded-lg"
-                      style={{ backgroundColor: 'var(--button-secondary-bg)', color: 'var(--button-secondary-text)', border: '1px solid var(--node-border)' }}
-                      onClick={(e) => { e.stopPropagation(); setContextText(assistantStreamingText); openContext(); }}
-                    >
-                      View
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Chat Input */}
-            <div className="flex-1">
-              <input
-                type="text"
-                placeholder="Ask AI about API testing, debugging, automation..."
-                value={chatMessage}
-                onChange={(e) => setChatMessage(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    handleSendAgentMessage();
-                  }
-                }}
-                ref={chatInputRef}
-                className="w-full px-4 py-2.5 rounded-xl border-0 focus:ring-0 text-sm"
-                style={{
-                  backgroundColor: 'var(--node-input-bg)',
-                  color: 'var(--node-text)',
-                  cursor: 'text',
-                  border: '1px solid var(--node-border)'
-                }}
-                disabled={isAssistantStreaming}
-                onMouseDown={(e) => e.stopPropagation()}
-                onClick={(e) => e.stopPropagation()}
-              />
-            </div>
-
-          {/* Action Buttons */}
-          <div className="flex gap-1">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleSendAgentMessage();
-                }}
-                onMouseDown={(e) => e.stopPropagation()}
-              disabled={!chatMessage.trim() || isAssistantStreaming}
-                className="px-3 py-2.5 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                style={{
-                  backgroundColor: chatMessage.trim() ? 'var(--button-primary-bg)' : 'var(--node-input-bg)',
-                  color: chatMessage.trim() ? 'var(--button-primary-text)' : 'var(--node-text-muted)',
-                  cursor: chatMessage.trim() ? 'pointer' : 'not-allowed',
-                  border: '1px solid var(--node-border)'
-                }}
-                title="Send Message"
-              >
-                <Send className="w-4 h-4" />
-              </button>
-
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                closeChat();
-              }}
-              onMouseDown={(e) => e.stopPropagation()}
-              className="px-3 py-2.5 rounded-xl transition-colors hover:bg-black/5 dark:hover:bg-white/5"
-              style={{
-                backgroundColor: 'var(--node-input-bg)',
-                color: 'var(--node-text-muted)',
-                cursor: 'pointer',
-                border: '1px solid var(--node-border)'
-              }}
-              title="Close Chat"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-      </motion.div>
+      <AgentChatBar />
 
       {/* Control Panel */}
       <motion.div

@@ -10,6 +10,15 @@ export interface RunStep {
   title?: string;
 }
 
+export type ChatRole = 'user' | 'assistant';
+
+export interface ChatMessage {
+  id: string;
+  role: ChatRole;
+  content: string;
+  createdAt: number;
+}
+
 interface AppState {
   // UI toggles
   isMenuOpen: boolean;
@@ -40,6 +49,13 @@ interface AppState {
   setContextText: (t: string) => void;
   contextMessage: string;
   setContextMessage: (t: string) => void;
+
+  // Context chat history
+  contextMessages: ChatMessage[];
+  setContextMessages: (msgs: ChatMessage[]) => void;
+  addContextMessage: (msg: ChatMessage) => void;
+  updateLastAssistantMessage: (content: string) => void;
+  clearContextMessages: () => void;
 
   // Agent/run state (placeholder for future integration)
   activeRunId?: string;
@@ -81,6 +97,21 @@ export const useAppStore = create<AppState>((set, get) => ({
   setContextText: (t) => set({ contextText: t }),
   contextMessage: '',
   setContextMessage: (t) => set({ contextMessage: t }),
+
+  contextMessages: [],
+  setContextMessages: (msgs) => set({ contextMessages: msgs }),
+  addContextMessage: (msg) => set((s) => ({ contextMessages: [...s.contextMessages, msg] })),
+  updateLastAssistantMessage: (content) => set((s) => {
+    const msgs = s.contextMessages.slice();
+    for (let i = msgs.length - 1; i >= 0; i--) {
+      if (msgs[i].role === 'assistant') {
+        msgs[i] = { ...msgs[i], content };
+        break;
+      }
+    }
+    return { contextMessages: msgs };
+  }),
+  clearContextMessages: () => set({ contextMessages: [] }),
 
   // Run state
   activeRunId: undefined,
