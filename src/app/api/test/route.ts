@@ -1,66 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { httpRequest } from '@/lib/httpRequest';
 
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
         const { url, method, headers = {}, data = null } = body;
 
-        if (!url) {
-            return NextResponse.json({ error: 'URL is required' }, { status: 400 });
-        }
+        if (!url) return NextResponse.json({ error: 'URL is required' }, { status: 400 });
+        if (!method) return NextResponse.json({ error: 'Method is required' }, { status: 400 });
 
-        if (!method) {
-            return NextResponse.json({ error: 'Method is required' }, { status: 400 });
-        }
-
-        const startTime = Date.now();
-
-        // Prepare fetch options
-        const fetchOptions: RequestInit = {
-            method: method.toUpperCase(),
+        const result = await httpRequest({ url, method, headers, data });
+        return NextResponse.json(result, {
             headers: {
-                'Content-Type': 'application/json',
-                ...headers,
+                'X-Cache': result.fromCache ? 'HIT' : 'MISS',
             },
-        };
-
-        // Add body for methods that support it
-        if (['POST', 'PUT', 'PATCH'].includes(method.toUpperCase()) && data) {
-            fetchOptions.body = typeof data === 'string' ? data : JSON.stringify(data);
-        }
-
-        // Make the API call
-        const response = await fetch(url, fetchOptions);
-        const endTime = Date.now();
-        const responseTime = endTime - startTime;
-
-        // Get response data
-        let responseData;
-        const contentType = response.headers.get('content-type');
-
-        if (contentType && contentType.includes('application/json')) {
-            try {
-                responseData = await response.json();
-            } catch {
-                responseData = await response.text();
-            }
-        } else {
-            responseData = await response.text();
-        }
-
-        // Get response headers
-        const responseHeaders: Record<string, string> = {};
-        response.headers.forEach((value, key) => {
-            responseHeaders[key] = value;
-        });
-
-        return NextResponse.json({
-            status: response.status,
-            statusText: response.statusText,
-            headers: responseHeaders,
-            data: responseData,
-            responseTime,
-            url: response.url,
         });
 
     } catch (error) {

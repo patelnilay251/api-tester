@@ -57,6 +57,11 @@ interface AppState {
   updateLastAssistantMessage: (content: string) => void;
   clearContextMessages: () => void;
 
+  // General chat (AgentChatBar) minimal history
+  messages: { role: 'user' | 'assistant'; content: string }[];
+  appendMessage: (msg: { role: 'user' | 'assistant'; content: string }) => void;
+  clearMessages: () => void;
+
   // Agent/run state (placeholder for future integration)
   activeRunId?: string;
   setActiveRunId: (id?: string) => void;
@@ -112,6 +117,11 @@ export const useAppStore = create<AppState>((set, get) => ({
     return { contextMessages: msgs };
   }),
   clearContextMessages: () => set({ contextMessages: [] }),
+
+  // General chat history for the chat bar
+  messages: [],
+  appendMessage: (msg) => set((s) => ({ messages: [...s.messages, msg] })),
+  clearMessages: () => set({ messages: [] }),
 
   // Run state
   activeRunId: undefined,

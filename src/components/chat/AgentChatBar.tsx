@@ -13,6 +13,10 @@ export default function AgentChatBar() {
   const setChatMessage = useAppStore((s) => s.setChatMessage);
   const selectedModel = useAppStore((s) => s.selectedModel);
   const setSelectedModel = useAppStore((s) => s.setSelectedModel);
+  const appendMessage = useAppStore((s) => s.appendMessage);
+  const messages = useAppStore((s) => s.messages);
+  const runStatus = useAppStore((s) => s.runStatus);
+  const setRunStatus = useAppStore((s) => s.setRunStatus);
   const [isAssistantStreaming, setIsAssistantStreaming] = useState(false);
   const chatInputRef = useRef<HTMLInputElement>(null);
 
@@ -25,38 +29,49 @@ export default function AgentChatBar() {
   }, [isChatOpen]);
 
   const handleSendAgentMessage = useCallback(async () => {
-    if (!chatMessage.trim() || isAssistantStreaming) return;
+    const msg = chatMessage.trim();
+    if (!msg || isAssistantStreaming) return;
 
     try {
       setIsAssistantStreaming(true);
+      setRunStatus('running');
+      // Append user message to minimal history
+      appendMessage({ role: 'user', content: msg });
 
       const res = await fetch('/api/agent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: chatMessage, model: selectedModel, mode: 'agent' }),
+        body: JSON.stringify({ message: msg, model: selectedModel, mode: 'agent', messages }),
       });
 
       if (!res.ok || !res.body) {
         setIsAssistantStreaming(false);
+        setRunStatus('idle');
         return;
       }
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let done = false;
+      let running = '';
       while (!done) {
         const { value, done: d } = await reader.read();
         done = d;
-        // Discard chunk output for agentic mode; just keep status spinner/text
-        if (value) decoder.decode(value, { stream: !done });
+        if (value) {
+          const chunk = decoder.decode(value, { stream: !done });
+          running += chunk;
+        }
       }
+      // Append final assistant output
+      if (running.trim()) appendMessage({ role: 'assistant', content: running });
     } catch (e) {
       console.error('Agent stream error', e);
     } finally {
       setIsAssistantStreaming(false);
+      setRunStatus('idle');
       setChatMessage('');
     }
-  }, [chatMessage, selectedModel, isAssistantStreaming, setChatMessage]);
+  }, [chatMessage, selectedModel, isAssistantStreaming, setChatMessage, setRunStatus, appendMessage, messages]);
 
   // Expose a way to programmatically open chat and focus
   useEffect(() => {
@@ -96,27 +111,24 @@ export default function AgentChatBar() {
           <ChevronDown className="absolute right-2 top-1/2 transform -translate-y-1/2 w-3 h-3 pointer-events-none" style={{ color: 'var(--node-text-muted)' }} />
         </div>
 
-        {/* Assistant Output (streaming) */}
+        {/* Assistant typing indicator (compact) */}
         {isAssistantStreaming && (
           <div className="flex-none">
             <div
-              className="px-3 text-xs rounded-xl relative flex items-center justify-center"
+              className="px-2 py-2 text-xs rounded-xl relative flex items-center gap-2"
               style={{
                 backgroundColor: 'var(--node-input-bg)',
                 color: 'var(--node-text)',
-                border: '1px solid var(--node-border)',
-                height: 40,
-                width: 240,
+                border: '1px solid var(--node-border)'
               }}
-              title="Agent is working"
+              title="Assistant typing"
             >
-              <div className="flex items-center gap-2">
-                <div
-                  className="w-3 h-3 rounded-full animate-spin"
-                  style={{ border: '2px solid var(--node-text)', borderTopColor: 'transparent' }}
-                />
-                <span>Working on it…</span>
+              <div className="flex items-center gap-1">
+                <span className="inline-block w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: 'var(--node-text-muted)' }} />
+                <span className="inline-block w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: 'var(--node-text-muted)', animationDelay: '150ms' }} />
+                <span className="inline-block w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: 'var(--node-text-muted)', animationDelay: '300ms' }} />
               </div>
+              <span>Assistant typing…</span>
             </div>
           </div>
         )}
@@ -143,8 +155,20 @@ export default function AgentChatBar() {
           />
         </div>
 
-        {/* Action Buttons */}
+        {/* Action Buttons + Status */}
         <div className="flex gap-1">
+          {/* Optional run status pill */}
+          <div
+            className="px-2 py-2 rounded-xl text-[11px] hidden md:block"
+            style={{
+              backgroundColor: 'var(--node-input-bg)',
+              color: runStatus === 'running' ? 'var(--button-primary-bg)' : 'var(--node-text-muted)',
+              border: '1px solid var(--node-border)'
+            }}
+            title={`Run status: ${runStatus}`}
+          >
+            {runStatus === 'running' ? 'Running' : 'Idle'}
+          </div>
           <button
             onClick={(e) => { e.stopPropagation(); handleSendAgentMessage(); }}
             onMouseDown={(e) => e.stopPropagation()}

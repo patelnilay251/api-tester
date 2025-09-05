@@ -26,6 +26,7 @@ export interface ResponseData {
   data: unknown;
   responseTime: number;
   url: string;
+  fromCache?: boolean;
 }
 
 export interface AssertionResult {
