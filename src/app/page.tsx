@@ -15,6 +15,8 @@ import useAppStore from '@/store/appStore';
 
 import '@xyflow/react/dist/style.css';
 import AgentChatBar from '@/components/chat/AgentChatBar';
+import { setAgentContextProvider, setAgentActionApplier } from '@/lib/agentBridge';
+import type { CanvasContextPayload, CanvasAction } from '@/types/agent';
 import ContextPanel from '@/components/chat/ContextPanel';
 
 interface ApiRequestNodeData extends Record<string, unknown> {
@@ -71,17 +73,31 @@ export default function Home() {
   const setIsEnvOpen = useAppStore((s) => s.setIsEnvOpen);
   const isHistoryOpen = useAppStore((s) => s.isHistoryOpen);
   const setIsHistoryOpen = useAppStore((s) => s.setIsHistoryOpen);
+  const activeFlowId = useAppStore((s) => s.activeFlowId);
+  const setActiveFlowId = useAppStore((s) => s.setActiveFlowId);
+
+
+  // Track last-known request/response per node to provide LLM context and enable send actions
+  const [nodeMeta, setNodeMeta] = useState<Record<string, {
+    lastRequest?: RequestData;
+    lastResponse?: ResponseData;
+    assertions?: Assertion[];
+    name?: string;
+  }>>({});
 
 
   const handleNameChange = useCallback((nodeId: string, newName: string) => {
+    try { fetch('/api/client-actions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'rename_node', flowId: activeFlowId, payload: { nodeId, newName } }) }); } catch {}
     setNodeNames(prev => ({
       ...prev,
       [nodeId]: newName
     }));
-  }, []);
+    setNodeMeta(prev => ({ ...prev, [nodeId]: { ...(prev[nodeId] || {}), name: newName } }));
+  }, [activeFlowId]);
 
   const handleDeleteNode = useCallback((nodeId: string) => {
     console.log('Deleting node:', nodeId);
+    try { fetch('/api/client-actions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'delete_node_cascade', flowId: activeFlowId, payload: { nodeId } }) }); } catch {}
 
     // Use a ref to coordinate between the two state updates
     let nodesToDelete: Set<string>;
@@ -130,10 +146,11 @@ export default function Home() {
       });
       return newNames;
     });
-  }, [setNodes, setEdges]);
+  }, [setNodes, setEdges, activeFlowId]);
 
   const handleDeleteSingleNode = useCallback((nodeId: string) => {
     console.log('Deleting single node:', nodeId);
+    try { fetch('/api/client-actions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'delete_node', flowId: activeFlowId, payload: { nodeId } }) }); } catch {}
 
     setNodes((nds) => nds.filter((node) => node.id !== nodeId));
     setEdges((eds) => eds.filter((edge) => edge.source !== nodeId && edge.target !== nodeId));
@@ -144,7 +161,7 @@ export default function Home() {
       delete newNames[nodeId];
       return newNames;
     });
-  }, [setNodes, setEdges]);
+  }, [setNodes, setEdges, activeFlowId]);
 
   const handleRequestSent = useCallback((
     nodeId: string,
@@ -202,6 +219,11 @@ export default function Home() {
       console.log('Creating edge:', newEdge);
       return [...currentEdges, newEdge];
     });
+    // track last request/response for context
+    setNodeMeta((prev) => ({
+      ...prev,
+      [nodeId]: { ...(prev[nodeId] || {}), lastRequest: requestData, lastResponse: response, assertions: meta?.assertions || (prev[nodeId]?.assertions || []), name: nodeNames[nodeId] },
+    }));
   }, [setNodes, setEdges, handleDeleteSingleNode, handleNameChange, nodeNames, theme]);
 
   const initialNodes: AppNode[] = useMemo(() => [
@@ -272,6 +294,23 @@ export default function Home() {
     });
   }, [handleRequestSent, handleDeleteNode, handleDeleteSingleNode, handleNameChange, nodeNames, setNodes]);
 
+  // Autosave flow (nodes/edges, node names) with debounce
+  useEffect(() => {
+    const t = setTimeout(() => {
+      try {
+        const body = { id: activeFlowId, name: 'Default Flow', content: { nodes, edges, nodeNames } };
+        fetch('/api/flow', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        }).then(async (res) => {
+          try { const j = await res.json(); if (j?.id && !activeFlowId) setActiveFlowId(j.id); } catch {}
+        });
+      } catch {}
+    }, 600);
+    return () => clearTimeout(t);
+  }, [nodes, edges, nodeNames, activeFlowId, setActiveFlowId]);
+
   // Update edge colors when theme changes
   useEffect(() => {
     setEdges((currentEdges) => {
@@ -287,6 +326,7 @@ export default function Home() {
 
   const onConnect = useCallback(
     (params: Connection) => {
+      try { fetch('/api/client-actions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'connect', flowId: activeFlowId, payload: params }) }); } catch {}
       const newEdge = {
         ...params,
         style: {
@@ -297,10 +337,11 @@ export default function Home() {
       };
       setEdges((eds) => addEdge(newEdge, eds));
     },
-    [setEdges, theme]
+    [setEdges, theme, activeFlowId]
   );
 
   const handleAddNewApiNode = useCallback(() => {
+    try { fetch('/api/client-actions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'add_node', flowId: activeFlowId }) }); } catch {}
     const newId = `api-${nodeId + 1}`;
     const newNode: AppNode = {
       id: newId,
@@ -320,9 +361,11 @@ export default function Home() {
 
     setNodes((nds) => [...nds, newNode]);
     setNodeId(nodeId + 1);
-  }, [nodeId, handleRequestSent, handleDeleteNode, handleNameChange, nodeNames, setNodes]);
+    setNodeMeta((prev) => ({ ...prev, [newId]: { name: nodeNames[newId] || 'API Request' } }));
+  }, [nodeId, handleRequestSent, handleDeleteNode, handleNameChange, nodeNames, setNodes, activeFlowId]);
 
   const handleAddNodeFromRequestData = useCallback((initialRequest: RequestData) => {
+    try { fetch('/api/client-actions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'add_node_from_history', flowId: activeFlowId, payload: { url: initialRequest.url, method: initialRequest.method } }) }); } catch {}
     const newId = `api-${nodeId + 1}`;
     const newNode: AppNode = {
       id: newId,
@@ -342,14 +385,17 @@ export default function Home() {
     };
     setNodes((nds) => [...nds, newNode]);
     setNodeId(nodeId + 1);
-  }, [nodeId, nodeNames, handleRequestSent, handleDeleteNode, handleNameChange, setNodes]);
+    setNodeMeta((prev) => ({ ...prev, [newId]: { lastRequest: initialRequest, assertions: initialRequest.assertions || [], name: nodeNames[newId] || 'API Request' } }));
+  }, [nodeId, nodeNames, handleRequestSent, handleDeleteNode, handleNameChange, setNodes, activeFlowId]);
 
   const handleReset = useCallback(() => {
+    try { fetch('/api/client-actions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'reset_graph', flowId: activeFlowId }) }); } catch {}
     setNodes(initialNodes);
     setEdges([]);
     setNodeId(1);
     setNodeNames({});
-  }, [initialNodes, setNodes, setEdges]);
+    setNodeMeta({});
+  }, [initialNodes, setNodes, setEdges, activeFlowId]);
 
   const toggleMenu = useCallback(() => {
     setIsMenuOpen(!isMenuOpen);
@@ -387,6 +433,229 @@ export default function Home() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [openChat, closeChat, isChatOpen, isContextOpen, openContext, closeContext]);
+
+  // Provide serialized canvas context to the agent
+  const serializeSelectionForLLM = useCallback((): CanvasContextPayload => {
+    const selected = nodes.filter((n) => n.selected);
+    const selectedIds = new Set(selected.map((n) => n.id));
+    const selectedNodes = selected.map((n) => {
+      const meta = nodeMeta[n.id] || {};
+      const req = meta.lastRequest;
+      const res = meta.lastResponse;
+      const headersPreview: Record<string, string> = {};
+      try {
+        if (req?.headers) {
+          const raw = req.headers;
+          let parsed: Record<string, string> = {};
+          if (typeof raw === 'string') parsed = JSON.parse(raw);
+          else parsed = raw as any;
+          Object.keys(parsed).slice(0, 6).forEach((k) => { headersPreview[k] = String(parsed[k]); });
+        }
+      } catch {}
+      return {
+        id: n.id,
+        type: n.type || 'apiRequest',
+        name: nodeNames[n.id] || meta.name,
+        lastRequest: req ? {
+          url: req.url,
+          method: req.method,
+          headersPreview,
+          bodyPreview: req.data ? (typeof req.data === 'string' ? req.data.slice(0, 256) : JSON.stringify(req.data).slice(0, 256)) : undefined,
+        } : undefined,
+        lastResponse: res ? {
+          status: res.status,
+          responseTime: res.responseTime,
+          fromCache: !!res.fromCache,
+        } : undefined,
+      };
+    });
+    const simpleEdges = edges
+      .filter((e) => selectedIds.has(e.source) || selectedIds.has(e.target))
+      .map((e) => ({ id: e.id, source: e.source, target: e.target }));
+    return { selectedNodes, edges: simpleEdges };
+  }, [nodes, edges, nodeMeta, nodeNames]);
+
+  useEffect(() => {
+    setAgentContextProvider(() => serializeSelectionForLLM());
+  }, [serializeSelectionForLLM]);
+
+  // Helpers: update a node's initialRequest data
+  const patchRequestOnNode = useCallback((id: string, patch: Partial<RequestData>) => {
+    setNodes((current) => current.map((n) => {
+      if (n.id !== id || n.type !== 'apiRequest') return n;
+      const prevInit = (n.data as any).initialRequest as RequestData | undefined;
+      const merged: RequestData = {
+        url: prevInit?.url || '',
+        method: prevInit?.method || 'GET',
+        headers: prevInit?.headers || '',
+        data: prevInit?.data || '',
+        queryParams: prevInit?.queryParams || [],
+        useBearer: prevInit?.useBearer || false,
+        bearerToken: prevInit?.bearerToken || '',
+        assertions: prevInit?.assertions || [],
+        ...(patch as any),
+      };
+      return { ...n, data: { ...n.data, initialRequest: merged } } as AppNode;
+    }));
+    setNodeMeta((prev) => ({ ...prev, [id]: { ...(prev[id] || {}), lastRequest: { ...(prev[id]?.lastRequest || {} as any), ...(patch as any) } as any } }));
+  }, [setNodes]);
+
+  // Send request for a node id using last known data
+  const sendRequestForNode = useCallback(async (id: string) => {
+    const node = nodes.find((n) => n.id === id && n.type === 'apiRequest');
+    if (!node) return;
+    const initReq = (node.data as any).initialRequest as RequestData | undefined;
+    const reqData = nodeMeta[id]?.lastRequest || initReq;
+    if (!reqData || !reqData.url || !reqData.method) return;
+
+    // replicate client request building (headers/data, env, bearer)
+    try {
+      // parse headers
+      let parsedHeaders: Record<string, string> = {};
+      if (reqData.headers?.trim()) {
+        try { parsedHeaders = JSON.parse(reqData.headers) as Record<string, string>; } catch {
+          const headerLines = reqData.headers.split('\n');
+          parsedHeaders = headerLines.reduce<Record<string, string>>((acc, line) => {
+            const [key, value] = line.split(':').map((s) => s.trim());
+            if (key && value) acc[key] = value;
+            return acc;
+          }, {});
+        }
+      }
+      // parse body
+      let parsedData: any = null;
+      if (reqData.data?.trim()) {
+        try { parsedData = JSON.parse(reqData.data); } catch { parsedData = reqData.data; }
+      }
+
+      // build URL with env and query params
+      let resolvedUrl = env.resolveString(reqData.url);
+      if (resolvedUrl.startsWith('/')) {
+        const base = env.baseUrl ? env.baseUrl.replace(/\/$/, '') : '';
+        resolvedUrl = `${base}${resolvedUrl}`;
+      }
+      try {
+        const u = new URL(resolvedUrl);
+        (reqData.queryParams || []).forEach(({ key, value }) => {
+          if (key) u.searchParams.set(env.resolveString(key), env.resolveString(value));
+        });
+        resolvedUrl = u.toString();
+      } catch {}
+
+      const useBearer = !!reqData.useBearer;
+      const bearerToken = (reqData.bearerToken?.trim() || env.token || '');
+      if (useBearer && bearerToken && !parsedHeaders['Authorization']) {
+        parsedHeaders['Authorization'] = `Bearer ${env.resolveString(bearerToken)}`;
+      }
+
+      parsedHeaders = env.resolveDeep(parsedHeaders);
+      parsedData = env.resolveDeep(parsedData);
+
+      const res = await fetch('/api/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: resolvedUrl, method: reqData.method, headers: parsedHeaders, data: parsedData }),
+      });
+      const result: ResponseData = await res.json();
+      if (res.ok) {
+        handleRequestSent(id, reqData as RequestData, result, { assertions: reqData.assertions || [], results: [] });
+      }
+    } catch (e) {
+      console.error('sendRequestForNode error', e);
+    }
+  }, [nodes, nodeMeta, env, handleRequestSent]);
+
+  // Agent action applier
+  const applyCanvasAction = useCallback(async (action: CanvasAction) => {
+    try { fetch('/api/client-actions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: action.type, flowId: activeFlowId, payload: action }) }); } catch {}
+    switch (action.type) {
+      case 'create_request_node': {
+        const newId = `api-${Date.now()}`;
+        const pos = action.position || {};
+        const initialRequest: RequestData | undefined = action.request ? {
+          url: action.request.url || '',
+          method: (action.request.method as string) || 'GET',
+          headers: typeof action.request.headers === 'string' ? action.request.headers : JSON.stringify(action.request.headers || {}, null, 2),
+          data: typeof action.request.body === 'string' ? action.request.body : (action.request.body ? JSON.stringify(action.request.body, null, 2) : ''),
+          queryParams: action.request.queryParams || [],
+          useBearer: false,
+          bearerToken: '',
+          assertions: [],
+        } : undefined;
+        const newNode: AppNode = {
+          id: newId,
+          type: 'apiRequest',
+          position: { x: pos.x ?? (100 + Math.random() * 400), y: pos.y ?? (100 + Math.random() * 200) },
+          data: {
+            label: 'API Request',
+            name: action.name || 'API Request',
+            initialRequest,
+            onRequestSent: handleRequestSent,
+            onDelete: handleDeleteNode,
+            onNameChange: handleNameChange,
+          },
+        };
+        setNodes((nds) => [...nds, newNode]);
+        setNodeMeta((prev) => ({ ...prev, [newId]: { lastRequest: initialRequest, assertions: initialRequest?.assertions || [], name: action.name || 'API Request' } }));
+        break;
+      }
+      case 'update_request': {
+        patchRequestOnNode(action.nodeId, {
+          url: action.patch.url,
+          method: (action.patch.method as string) || undefined,
+          headers: typeof action.patch.headers === 'string' ? action.patch.headers : (action.patch.headers ? JSON.stringify(action.patch.headers, null, 2) : undefined),
+          data: typeof action.patch.body === 'string' ? action.patch.body : (action.patch.body != null ? JSON.stringify(action.patch.body, null, 2) : undefined),
+          queryParams: action.patch.queryParams,
+          useBearer: action.patch.useBearer,
+          bearerToken: action.patch.bearerToken,
+        });
+        break;
+      }
+      case 'send_request': {
+        await sendRequestForNode(action.nodeId);
+        break;
+      }
+      case 'connect_nodes': {
+        setEdges((eds) => addEdge({ id: `edge-${action.sourceId}-${action.targetId}-${Date.now()}`, source: action.sourceId, target: action.targetId, animated: true, style: { stroke: theme === 'dark' ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)', strokeWidth: 2 } }, eds));
+        break;
+      }
+      case 'rename_node': {
+        handleNameChange(action.nodeId, action.name);
+        break;
+      }
+      case 'delete_node': {
+        handleDeleteSingleNode(action.nodeId);
+        break;
+      }
+      case 'add_assertion': {
+        const prev = nodeMeta[action.nodeId]?.lastRequest;
+        if (prev) {
+          const assertions = [...(prev.assertions || [])];
+          const id = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+          const toAdd: any = { id, ...action.assertion };
+          assertions.push(toAdd);
+          patchRequestOnNode(action.nodeId, { assertions });
+        }
+        break;
+      }
+      case 'remove_assertion': {
+        const prev = nodeMeta[action.nodeId]?.lastRequest;
+        if (prev && prev.assertions) {
+          let assertions = prev.assertions.slice();
+          if (action.assertionId) assertions = assertions.filter((a: any) => a.id !== action.assertionId);
+          else if (action.match) assertions = assertions.filter((a: any) => a.type !== action.match?.type);
+          patchRequestOnNode(action.nodeId, { assertions });
+        }
+        break;
+      }
+      default:
+        break;
+    }
+  }, [activeFlowId, theme, setEdges, handleRequestSent, handleDeleteNode, handleNameChange, handleDeleteSingleNode, nodeMeta, patchRequestOnNode, sendRequestForNode]);
+
+  useEffect(() => {
+    setAgentActionApplier(applyCanvasAction);
+  }, [applyCanvasAction]);
 
   return (
     <div className="h-screen w-screen canvas-background">

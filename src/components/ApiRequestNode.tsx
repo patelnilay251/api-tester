@@ -65,8 +65,7 @@ const ApiRequestNode = memo(({ id, data, selected }: ApiRequestNodeProps) => {
                 ...data.initialRequest,
             }));
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, [data.initialRequest]);
 
     const handleSubmit = useCallback(async (e: React.FormEvent) => {
         e.preventDefault();
