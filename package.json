@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@upstash/redis": "^1.31.6",
+    "@supabase/supabase-js": "^2.45.3",
     "@ai-sdk/google": "^2.0.11",
     "@xyflow/react": "^12.8.4",
     "ai": "^5.0.30",

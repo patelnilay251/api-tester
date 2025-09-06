@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Send, ChevronDown, X } from 'lucide-react';
 import useAppStore from '@/store/appStore';
+import { getAgentContext, applyAgentAction } from '@/lib/agentBridge';
 
 export default function AgentChatBar() {
   const isChatOpen = useAppStore((s) => s.isChatOpen);
@@ -17,6 +18,7 @@ export default function AgentChatBar() {
   const messages = useAppStore((s) => s.messages);
   const runStatus = useAppStore((s) => s.runStatus);
   const setRunStatus = useAppStore((s) => s.setRunStatus);
+  const upsertStep = useAppStore((s) => s.upsertStep);
   const [isAssistantStreaming, setIsAssistantStreaming] = useState(false);
   const chatInputRef = useRef<HTMLInputElement>(null);
 
@@ -38,10 +40,11 @@ export default function AgentChatBar() {
       // Append user message to minimal history
       appendMessage({ role: 'user', content: msg });
 
+      const canvasContext = getAgentContext();
       const res = await fetch('/api/agent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: msg, model: selectedModel, mode: 'agent', messages }),
+        body: JSON.stringify({ message: msg, model: selectedModel, mode: 'agent', messages, canvasContext }),
       });
 
       if (!res.ok || !res.body) {
@@ -49,20 +52,68 @@ export default function AgentChatBar() {
         setRunStatus('idle');
         return;
       }
-
+      const contentType = res.headers.get('content-type') || '';
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let done = false;
       let running = '';
+      let buffer = '';
+      const flushEvent = async (raw: string) => {
+        // Parse minimal SSE: event: <name>\n data: <json or text>\n\n
+        const lines = raw.split('\n');
+        let ev = 'message';
+        const dataLines: string[] = [];
+        for (const line of lines) {
+          if (line.startsWith('event:')) ev = line.slice(6).trim();
+          else if (line.startsWith('data:')) dataLines.push(line.slice(5).trim());
+        }
+        const dataRaw = dataLines.join('\n');
+        if (ev === 'token') {
+          running += dataRaw;
+        } else if (ev === 'step_start') {
+          try {
+            const d = JSON.parse(dataRaw);
+            upsertStep({ id: d.id, idx: 0, type: d.type || 'llm', status: 'running', title: d.title });
+          } catch {}
+        } else if (ev === 'step_end') {
+          try {
+            const d = JSON.parse(dataRaw);
+            upsertStep({ id: d.id, idx: 0, type: 'llm', status: d.status || 'succeeded', title: '' });
+          } catch {}
+        } else if (ev === 'action') {
+          try {
+            const action = JSON.parse(dataRaw);
+            await applyAgentAction(action);
+          } catch (e) {
+            console.error('Failed to apply action from stream', e);
+          }
+        } else if (ev === 'done') {
+          // handled after loop
+        } else {
+          // Fallback: treat as text token for plain text streams
+          running += dataRaw;
+        }
+      };
+
       while (!done) {
         const { value, done: d } = await reader.read();
         done = d;
         if (value) {
           const chunk = decoder.decode(value, { stream: !done });
-          running += chunk;
+          if (contentType.includes('text/event-stream')) {
+            buffer += chunk;
+            let idx;
+            while ((idx = buffer.indexOf('\n\n')) !== -1) {
+              const eventChunk = buffer.slice(0, idx);
+              buffer = buffer.slice(idx + 2);
+              if (eventChunk.trim()) await flushEvent(eventChunk);
+            }
+          } else {
+            running += chunk;
+          }
         }
       }
-      // Append final assistant output
+      if (buffer.trim()) await flushEvent(buffer);
       if (running.trim()) appendMessage({ role: 'assistant', content: running });
     } catch (e) {
       console.error('Agent stream error', e);
@@ -71,7 +122,7 @@ export default function AgentChatBar() {
       setRunStatus('idle');
       setChatMessage('');
     }
-  }, [chatMessage, selectedModel, isAssistantStreaming, setChatMessage, setRunStatus, appendMessage, messages]);
+  }, [chatMessage, selectedModel, isAssistantStreaming, setChatMessage, setRunStatus, appendMessage, messages, upsertStep]);
 
   // Expose a way to programmatically open chat and focus
   useEffect(() => {

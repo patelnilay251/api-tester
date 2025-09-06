@@ -62,6 +62,12 @@ interface AppState {
   appendMessage: (msg: { role: 'user' | 'assistant'; content: string }) => void;
   clearMessages: () => void;
 
+  // Persistence ids
+  activeFlowId?: string;
+  setActiveFlowId: (id?: string) => void;
+  contextConversationId?: string;
+  setContextConversationId: (id?: string) => void;
+
   // Agent/run state (placeholder for future integration)
   activeRunId?: string;
   setActiveRunId: (id?: string) => void;
@@ -122,6 +128,12 @@ export const useAppStore = create<AppState>((set, get) => ({
   messages: [],
   appendMessage: (msg) => set((s) => ({ messages: [...s.messages, msg] })),
   clearMessages: () => set({ messages: [] }),
+
+  // Persistence ids
+  activeFlowId: undefined,
+  setActiveFlowId: (id) => set({ activeFlowId: id }),
+  contextConversationId: undefined,
+  setContextConversationId: (id) => set({ contextConversationId: id }),
 
   // Run state
   activeRunId: undefined,

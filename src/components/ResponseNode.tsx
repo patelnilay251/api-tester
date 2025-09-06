@@ -630,6 +630,14 @@ const ResponseNode = memo(({ id, data, selected }: ResponseNodeProps) => {
                     </div>
 
                     <div className="flex items-center gap-2">
+                        {typeof response.fromCache !== 'undefined' && (
+                            <div
+                                className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-medium border ${response.fromCache ? 'text-green-700 bg-green-50 border-green-200' : 'text-gray-700 bg-gray-50 border-gray-200'}`}
+                                title={response.fromCache ? 'Served from cache' : 'Fetched from origin'}
+                            >
+                                {response.fromCache ? 'Cache: HIT' : 'Cache: MISS'}
+                            </div>
+                        )}
                         <div className="flex items-center gap-1 text-xs" style={{ color: 'var(--node-text-muted)' }}>
                             <Clock className="w-3 h-3" />
                             {response.responseTime}ms

@@ -448,7 +448,7 @@ export default function Home() {
           const raw = req.headers;
           let parsed: Record<string, string> = {};
           if (typeof raw === 'string') parsed = JSON.parse(raw);
-          else parsed = raw as any;
+          else parsed = raw as Record<string, string>;
           Object.keys(parsed).slice(0, 6).forEach((k) => { headersPreview[k] = String(parsed[k]); });
         }
       } catch {}
@@ -483,7 +483,8 @@ export default function Home() {
   const patchRequestOnNode = useCallback((id: string, patch: Partial<RequestData>) => {
     setNodes((current) => current.map((n) => {
       if (n.id !== id || n.type !== 'apiRequest') return n;
-      const prevInit = (n.data as any).initialRequest as RequestData | undefined;
+      const apiNode = n as Node<ApiRequestNodeData, 'apiRequest'>;
+      const prevInit = apiNode.data.initialRequest as RequestData | undefined;
       const merged: RequestData = {
         url: prevInit?.url || '',
         method: prevInit?.method || 'GET',
@@ -493,18 +494,33 @@ export default function Home() {
         useBearer: prevInit?.useBearer || false,
         bearerToken: prevInit?.bearerToken || '',
         assertions: prevInit?.assertions || [],
-        ...(patch as any),
+        ...patch,
       };
-      return { ...n, data: { ...n.data, initialRequest: merged } } as AppNode;
+      return { ...apiNode, data: { ...apiNode.data, initialRequest: merged } } as AppNode;
     }));
-    setNodeMeta((prev) => ({ ...prev, [id]: { ...(prev[id] || {}), lastRequest: { ...(prev[id]?.lastRequest || {} as any), ...(patch as any) } as any } }));
-  }, [setNodes]);
+    setNodeMeta((prev) => {
+      const prevMeta = prev[id] || {};
+      const base: RequestData = prevMeta.lastRequest ?? {
+        url: '',
+        method: 'GET',
+        headers: '',
+        data: '',
+        queryParams: [],
+        useBearer: false,
+        bearerToken: '',
+        assertions: [],
+      };
+      const newLastRequest: RequestData = { ...base, ...patch };
+      return { ...prev, [id]: { ...prevMeta, lastRequest: newLastRequest } };
+    });
+  }, [setNodes, setNodeMeta]);
 
   // Send request for a node id using last known data
   const sendRequestForNode = useCallback(async (id: string) => {
     const node = nodes.find((n) => n.id === id && n.type === 'apiRequest');
     if (!node) return;
-    const initReq = (node.data as any).initialRequest as RequestData | undefined;
+    const apiNode = node as Node<ApiRequestNodeData, 'apiRequest'>;
+    const initReq = apiNode.data.initialRequest as RequestData | undefined;
     const reqData = nodeMeta[id]?.lastRequest || initReq;
     if (!reqData || !reqData.url || !reqData.method) return;
 
@@ -523,7 +539,7 @@ export default function Home() {
         }
       }
       // parse body
-      let parsedData: any = null;
+      let parsedData: unknown = null;
       if (reqData.data?.trim()) {
         try { parsedData = JSON.parse(reqData.data); } catch { parsedData = reqData.data; }
       }
@@ -632,7 +648,7 @@ export default function Home() {
         if (prev) {
           const assertions = [...(prev.assertions || [])];
           const id = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-          const toAdd: any = { id, ...action.assertion };
+      const toAdd: Assertion = { id, ...action.assertion } as Assertion;
           assertions.push(toAdd);
           patchRequestOnNode(action.nodeId, { assertions });
         }
@@ -642,8 +658,8 @@ export default function Home() {
         const prev = nodeMeta[action.nodeId]?.lastRequest;
         if (prev && prev.assertions) {
           let assertions = prev.assertions.slice();
-          if (action.assertionId) assertions = assertions.filter((a: any) => a.id !== action.assertionId);
-          else if (action.match) assertions = assertions.filter((a: any) => a.type !== action.match?.type);
+          if (action.assertionId) assertions = assertions.filter((a: Assertion) => a.id !== action.assertionId);
+          else if (action.match) assertions = assertions.filter((a: Assertion) => a.type !== action.match?.type);
           patchRequestOnNode(action.nodeId, { assertions });
         }
         break;
@@ -651,7 +667,7 @@ export default function Home() {
       default:
         break;
     }
-  }, [activeFlowId, theme, setEdges, handleRequestSent, handleDeleteNode, handleNameChange, handleDeleteSingleNode, nodeMeta, patchRequestOnNode, sendRequestForNode]);
+  }, [activeFlowId, theme, setEdges, setNodes, handleRequestSent, handleDeleteNode, handleNameChange, handleDeleteSingleNode, nodeMeta, patchRequestOnNode, sendRequestForNode]);
 
   useEffect(() => {
     setAgentActionApplier(applyCanvasAction);

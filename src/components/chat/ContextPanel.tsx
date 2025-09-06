@@ -17,6 +17,8 @@ export default function ContextPanel() {
   const addMessage = useAppStore((s) => s.addContextMessage);
   const updateLastAssistant = useAppStore((s) => s.updateLastAssistantMessage);
   const clearMessages = useAppStore((s) => s.clearContextMessages);
+  const conversationId = useAppStore((s) => s.contextConversationId);
+  const setConversationId = useAppStore((s) => s.setContextConversationId);
 
   const [isStreaming, setIsStreaming] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -99,13 +101,22 @@ export default function ContextPanel() {
           setContextText(running);
         }
       }
+      // Persist the conversation turn (user + assistant)
+      try {
+        const saveRes = await fetch('/api/conversation', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ conversationId, title: messages[0]?.content?.slice(0, 64) || 'Context Chat', model: selectedModel, user: content, assistant: running, type: 'context' })
+        });
+        const saved = await saveRes.json().catch(() => null);
+        if (saved?.conversationId && !conversationId) setConversationId(saved.conversationId);
+      } catch {}
     } catch (e) {
       console.error('Context stream error', e);
       updateLastAssistant('Error: Unable to reach assistant.');
     } finally {
       setIsStreaming(false);
     }
-  }, [contextMessage, isStreaming, messages, addMessage, openContext, selectedModel, updateLastAssistant, setContextMessage, setContextText]);
+  }, [contextMessage, isStreaming, messages, addMessage, openContext, selectedModel, updateLastAssistant, setContextMessage, setContextText, conversationId, setConversationId]);
 
   const bubbleVariants = {
     initial: { opacity: 0, y: 8, scale: 0.98 },
