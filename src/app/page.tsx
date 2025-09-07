@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { ReactFlow, useNodesState, useEdgesState, addEdge, Connection, Edge, Node } from '@xyflow/react';
 import { Plus, RotateCcw, Moon, Sun, Menu, X, Settings, Info, Github, Coffee, Clock } from 'lucide-react';
@@ -84,6 +84,13 @@ export default function Home() {
     assertions?: Assertion[];
     name?: string;
   }>>({});
+  // Refs to always have the latest state in async handlers
+  const nodesRef = useRef<AppNode[]>(nodes);
+  const nodeMetaRef = useRef<typeof nodeMeta>(nodeMeta);
+  const nodeNamesRef = useRef<Record<string, string>>(nodeNames);
+  useEffect(() => { nodesRef.current = nodes; }, [nodes]);
+  useEffect(() => { nodeMetaRef.current = nodeMeta; }, [nodeMeta]);
+  useEffect(() => { nodeNamesRef.current = nodeNames; }, [nodeNames]);
 
 
   const handleNameChange = useCallback((nodeId: string, newName: string) => {
@@ -511,18 +518,39 @@ export default function Home() {
         assertions: [],
       };
       const newLastRequest: RequestData = { ...base, ...patch };
-      return { ...prev, [id]: { ...prevMeta, lastRequest: newLastRequest } };
+      const next = { ...prev, [id]: { ...prevMeta, lastRequest: newLastRequest } };
+      nodeMetaRef.current = next;
+      return next;
     });
   }, [setNodes, setNodeMeta]);
 
-  // Send request for a node id using last known data
-  const sendRequestForNode = useCallback(async (id: string) => {
-    const node = nodes.find((n) => n.id === id && n.type === 'apiRequest');
+  // Send request for a node id using last known data, with optional overrides
+  const sendRequestForNode = useCallback(async (id: string, overrides?: any) => {
+    const node = nodesRef.current.find((n) => n.id === id && n.type === 'apiRequest');
     if (!node) return;
     const apiNode = node as Node<ApiRequestNodeData, 'apiRequest'>;
     const initReq = apiNode.data.initialRequest as RequestData | undefined;
-    const reqData = nodeMeta[id]?.lastRequest || initReq;
-    if (!reqData || !reqData.url || !reqData.method) return;
+    const base = nodeMetaRef.current[id]?.lastRequest || initReq;
+    if (!base) return;
+    // Merge method/url and flags; headers/body will be handled below before parsing
+    const method = (overrides?.method as string) || base.method;
+    const url = (overrides?.url as string) || base.url;
+    const queryParams = (overrides?.queryParams as any) ?? base.queryParams;
+    const useBearer = (overrides?.useBearer as boolean | undefined) ?? base.useBearer;
+    const bearerToken = (overrides?.bearerToken as string | undefined) ?? base.bearerToken;
+    let headersRaw: any = overrides?.headers != null ? overrides.headers : base.headers;
+    let bodyRaw: any = overrides?.body != null ? overrides.body : (overrides?.data != null ? overrides.data : base.data);
+    const reqData: RequestData = {
+      url: url || '',
+      method: method || 'GET',
+      headers: typeof headersRaw === 'string' ? headersRaw : JSON.stringify(headersRaw ?? {}, null, 2),
+      data: typeof bodyRaw === 'string' ? bodyRaw : (bodyRaw != null ? JSON.stringify(bodyRaw, null, 2) : ''),
+      queryParams,
+      useBearer,
+      bearerToken,
+      assertions: base.assertions || [],
+    };
+    if (!reqData.url || !reqData.method) return;
 
     // replicate client request building (headers/data, env, bearer)
     try {
@@ -579,11 +607,37 @@ export default function Home() {
     } catch (e) {
       console.error('sendRequestForNode error', e);
     }
-  }, [nodes, nodeMeta, env, handleRequestSent]);
+  }, [env, handleRequestSent]);
 
   // Agent action applier
   const applyCanvasAction = useCallback(async (action: CanvasAction) => {
     try { fetch('/api/client-actions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: action.type, flowId: activeFlowId, payload: action }) }); } catch {}
+    // Resolve helpers
+    const findNodeIdByName = (name?: string) => {
+      if (!name) return undefined;
+      const target = name.toLowerCase().trim();
+      const found = nodesRef.current.find((n) => {
+        const nm = (nodeNamesRef.current[n.id] || (n.data as any)?.name || '').toLowerCase().trim();
+        return nm && nm === target;
+      });
+      return found?.id;
+    };
+    const getSelectedNodeId = () => {
+      const selected = nodesRef.current.filter((n) => n.selected);
+      return selected.length === 1 ? selected[0].id : undefined;
+    };
+    const getFallbackApiNodeId = () => {
+      const list = nodesRef.current;
+      for (let i = list.length - 1; i >= 0; i--) {
+        if (list[i].type === 'apiRequest') return list[i].id;
+      }
+      return undefined;
+    };
+    const resolveSingleNodeId = (a: any) => a.nodeId || findNodeIdByName(a.nodeName) || getSelectedNodeId() || getFallbackApiNodeId();
+    const resolveSourceTargetIds = (a: any) => ({
+      source: a.sourceId || findNodeIdByName(a.sourceName) || getSelectedNodeId() || getFallbackApiNodeId(),
+      target: a.targetId || findNodeIdByName(a.targetName),
+    });
     switch (action.type) {
       case 'create_request_node': {
         const newId = `api-${Date.now()}`;
@@ -611,12 +665,22 @@ export default function Home() {
             onNameChange: handleNameChange,
           },
         };
-        setNodes((nds) => [...nds, newNode]);
-        setNodeMeta((prev) => ({ ...prev, [newId]: { lastRequest: initialRequest, assertions: initialRequest?.assertions || [], name: action.name || 'API Request' } }));
+        setNodes((nds) => {
+          const next = [...nds, newNode];
+          nodesRef.current = next;
+          return next;
+        });
+        setNodeMeta((prev) => {
+          const next = { ...prev, [newId]: { lastRequest: initialRequest, assertions: initialRequest?.assertions || [], name: action.name || 'API Request' } };
+          nodeMetaRef.current = next;
+          return next;
+        });
         break;
       }
       case 'update_request': {
-        patchRequestOnNode(action.nodeId, {
+        const nodeId = resolveSingleNodeId(action as any);
+        if (!nodeId) break;
+        patchRequestOnNode(nodeId, {
           url: action.patch.url,
           method: (action.patch.method as string) || undefined,
           headers: typeof action.patch.headers === 'string' ? action.patch.headers : (action.patch.headers ? JSON.stringify(action.patch.headers, null, 2) : undefined),
@@ -628,46 +692,85 @@ export default function Home() {
         break;
       }
       case 'send_request': {
-        await sendRequestForNode(action.nodeId);
+        const nodeId = resolveSingleNodeId(action as any);
+        if (!nodeId) break;
+        // If overrides provided, apply a patch first for UI, then send using merged overrides
+        let p: any = (action as any).patch;
+        // Be forgiving: if the model placed fields at the root of the action, treat them as a patch
+        if (!p) {
+          const root: any = action as any;
+          if (root.url || root.method || root.headers || root.body || root.queryParams || root.useBearer != null || root.bearerToken != null) {
+            p = root;
+          }
+        }
+        if (p) {
+          patchRequestOnNode(nodeId, {
+            url: p.url,
+            method: (p.method as string) || undefined,
+            headers: typeof p.headers === 'string' ? p.headers : (p.headers ? JSON.stringify(p.headers, null, 2) : undefined),
+            data: typeof p.body === 'string' ? p.body : (p.body != null ? JSON.stringify(p.body, null, 2) : undefined),
+            queryParams: p.queryParams,
+            useBearer: p.useBearer,
+            bearerToken: p.bearerToken,
+          });
+        }
+        await sendRequestForNode(nodeId, p);
         break;
       }
       case 'connect_nodes': {
-        setEdges((eds) => addEdge({ id: `edge-${action.sourceId}-${action.targetId}-${Date.now()}`, source: action.sourceId, target: action.targetId, animated: true, style: { stroke: theme === 'dark' ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)', strokeWidth: 2 } }, eds));
+        const { source, target } = resolveSourceTargetIds(action as any);
+        if (!source || !target) break;
+        setEdges((eds) => addEdge({ id: `edge-${source}-${target}-${Date.now()}`, source, target, animated: true, style: { stroke: theme === 'dark' ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)', strokeWidth: 2 } }, eds));
         break;
       }
       case 'rename_node': {
-        handleNameChange(action.nodeId, action.name);
+        {
+          const nodeId = resolveSingleNodeId(action as any);
+          if (nodeId) handleNameChange(nodeId, action.name);
+        }
         break;
       }
       case 'delete_node': {
-        handleDeleteSingleNode(action.nodeId);
+        {
+          const nodeId = resolveSingleNodeId(action as any);
+          if (nodeId) handleDeleteSingleNode(nodeId);
+        }
         break;
       }
       case 'add_assertion': {
-        const prev = nodeMeta[action.nodeId]?.lastRequest;
-        if (prev) {
-          const assertions = [...(prev.assertions || [])];
-          const id = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-      const toAdd: Assertion = { id, ...action.assertion } as Assertion;
-          assertions.push(toAdd);
-          patchRequestOnNode(action.nodeId, { assertions });
+        {
+          const nodeId = resolveSingleNodeId(action as any);
+          if (!nodeId) break;
+          const prev = nodeMetaRef.current[nodeId]?.lastRequest;
+          if (prev) {
+            const assertions = [...(prev.assertions || [])];
+            const id = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+            const toAdd: Assertion = { id, ...(action as any).assertion } as Assertion;
+            assertions.push(toAdd);
+            patchRequestOnNode(nodeId, { assertions });
+          }
         }
         break;
       }
       case 'remove_assertion': {
-        const prev = nodeMeta[action.nodeId]?.lastRequest;
-        if (prev && prev.assertions) {
-          let assertions = prev.assertions.slice();
-          if (action.assertionId) assertions = assertions.filter((a: Assertion) => a.id !== action.assertionId);
-          else if (action.match) assertions = assertions.filter((a: Assertion) => a.type !== action.match?.type);
-          patchRequestOnNode(action.nodeId, { assertions });
+        {
+          const nodeId = resolveSingleNodeId(action as any);
+          if (!nodeId) break;
+          const prev = nodeMetaRef.current[nodeId]?.lastRequest;
+          if (prev && prev.assertions) {
+            let assertions = prev.assertions.slice();
+            const aAny: any = action as any;
+            if (aAny.assertionId) assertions = assertions.filter((a: Assertion) => a.id !== aAny.assertionId);
+            else if (aAny.match) assertions = assertions.filter((a: Assertion) => a.type !== aAny.match?.type);
+            patchRequestOnNode(nodeId, { assertions });
+          }
         }
         break;
       }
       default:
         break;
     }
-  }, [activeFlowId, theme, setEdges, setNodes, handleRequestSent, handleDeleteNode, handleNameChange, handleDeleteSingleNode, nodeMeta, patchRequestOnNode, sendRequestForNode]);
+  }, [activeFlowId, theme, setEdges, setNodes, handleRequestSent, handleDeleteNode, handleNameChange, handleDeleteSingleNode, patchRequestOnNode, sendRequestForNode]);
 
   useEffect(() => {
     setAgentActionApplier(applyCanvasAction);

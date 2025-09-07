@@ -48,7 +48,8 @@ export type CanvasAction =
     }
   | {
       type: 'update_request';
-      nodeId: string;
+      nodeId?: string;
+      nodeName?: string;
       patch: {
         url?: string;
         method?: HttpMethod | string;
@@ -61,30 +62,47 @@ export type CanvasAction =
     }
   | {
       type: 'send_request';
-      nodeId: string;
+      nodeId?: string;
+      nodeName?: string;
+      // Optional one-shot overrides to apply before sending
+      patch?: {
+        url?: string;
+        method?: HttpMethod | string;
+        headers?: Record<string, string> | string;
+        body?: unknown;
+        queryParams?: Array<{ key: string; value: string }>;
+        useBearer?: boolean;
+        bearerToken?: string;
+      };
     }
   | {
       type: 'connect_nodes';
-      sourceId: string;
-      targetId: string;
+      sourceId?: string;
+      targetId?: string;
+      sourceName?: string;
+      targetName?: string;
     }
   | {
       type: 'rename_node';
-      nodeId: string;
+      nodeId?: string;
+      nodeName?: string;
       name: string;
     }
   | {
       type: 'delete_node';
-      nodeId: string;
+      nodeId?: string;
+      nodeName?: string;
     }
   | {
       type: 'add_assertion';
-      nodeId: string;
+      nodeId?: string;
+      nodeName?: string;
       assertion: { type: 'status'; equals: number } | { type: 'bodyContains'; text: string } | { type: 'headerContains'; header: string; text: string };
     }
   | {
       type: 'remove_assertion';
-      nodeId: string;
+      nodeId?: string;
+      nodeName?: string;
       assertionId?: string; // if known
       match?: { type: 'status' | 'bodyContains' | 'headerContains' };
     };

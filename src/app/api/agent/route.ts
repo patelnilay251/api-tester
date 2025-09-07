@@ -63,13 +63,15 @@ export async function POST(req: NextRequest) {
             'At the end of your reply, append an ACTIONS: marker followed by a pure JSON array of actions. Do not include prose after the array.',
             'Schema (types):',
             '{"type":"create_request_node","name?":"string","position?":{"x?":number,"y?":number},"request?":{"url?":"string","method?":"GET|POST|PUT|DELETE|PATCH","headers?":Record<string,string>,"body?":unknown,"queryParams?":{"key":"string","value":"string"}[]}}',
-            '{"type":"update_request","nodeId":"string","patch":{"url?":"string","method?":"GET|POST|PUT|DELETE|PATCH","headers?":Record<string,string>,"body?":unknown,"queryParams?":Array}}',
-            '{"type":"send_request","nodeId":"string"}',
-            '{"type":"connect_nodes","sourceId":"string","targetId":"string"}',
-            '{"type":"rename_node","nodeId":"string","name":"string"}',
-            '{"type":"delete_node","nodeId":"string"}',
+            '{"type":"update_request","nodeId?":"string","nodeName?":"string","patch":{"url?":"string","method?":"GET|POST|PUT|DELETE|PATCH","headers?":Record<string,string>,"body?":unknown,"queryParams?":Array,"useBearer?":boolean,"bearerToken?":string}}',
+            '{"type":"send_request","nodeId?":"string","nodeName?":"string","patch?":{"url?":"string","method?":"GET|POST|PUT|DELETE|PATCH","headers?":Record<string,string>,"body?":unknown,"queryParams?":Array,"useBearer?":boolean,"bearerToken?":string}}',
+            '{"type":"connect_nodes","sourceId?":"string","targetId?":"string","sourceName?":"string","targetName?":"string"}',
+            '{"type":"rename_node","nodeId?":"string","nodeName?":"string","name":"string"}',
+            '{"type":"delete_node","nodeId?":"string","nodeName?":"string"}',
             '{"type":"add_assertion","nodeId":"string","assertion": {"type":"status","equals":number} | {"type":"bodyContains","text":"string"} | {"type":"headerContains","header":"string","text":"string"}}',
             '{"type":"remove_assertion","nodeId":"string","assertionId?":"string","match?":{"type":"status"|"bodyContains"|"headerContains"}}',
+            'Node references: Prefer nodeId; if unknown, you may use nodeName. If neither is given, operate on the currently selected node; if no selection, use the most recently created API request node.',
+            'If a user asks to change method, URL, headers, body, or auth and then send, either: (a) emit an update_request immediately followed by send_request, or (b) use send_request with a patch to apply overrides and send in one step. Always ensure the send uses the intended method and URL.',
           ].join('\n')
         : 'You are the API Flow Tester assistant. Maintain conversation context, be clear and structured. Use short paragraphs and compact code blocks.';
 
